@@ -79,10 +79,11 @@ import dev.chrisbanes.haze.rememberHazeState
 @Composable
 fun AssignmentScreen(
     viewModel: LmsViewModel,
-    course: CourseInfo,
+    courseCode: String,
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val course = uiState.allCourseInfo.find { it.courseCode == courseCode } ?: return
     val allTaskDetail = uiState.allTaskInfo
     val isLoading = uiState.isLoading
     val errorMessage = uiState.errorMessage
@@ -247,18 +248,18 @@ fun AssignmentScreen(
                             }
                         }
                     } else {
-                        items(allTaskDetail.toList()) { (index, task) ->
+                        items(allTaskDetail) { meetingTask ->
                             TaskExpressiveCard(
-                                pertemuanKe = index + 1,
-                                taskInfo = task,
+                                pertemuanKe = meetingTask.meetingIndex + 1,
+                                taskInfo = meetingTask.taskInfo,
                                 onDownloadClick = {
-                                    task.taskFile?.let(viewModel::downloadFile)
+                                    meetingTask.taskInfo.taskFile?.let(viewModel::downloadFile)
                                 },
                                 onViewPdfClick = {
-                                    task.viewUrl?.let(uriHandler::openUri)
+                                    meetingTask.taskInfo.viewUrl?.let(uriHandler::openUri)
                                 },
                                 onSubmitClick = {
-                                    currentSubmitUrl = task.taskUrl
+                                    currentSubmitUrl = meetingTask.taskInfo.taskUrl
                                     launcher.launch("*/*")
                                 }
                             )

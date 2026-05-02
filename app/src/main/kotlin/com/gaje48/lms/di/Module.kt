@@ -37,12 +37,12 @@ val module = module {
             internetDataSource = get(),
             storageDataSource = get(),
             localDataSource = get(),
-            studentDao = get(),
-            courseDao = get(),
-            meetingDao = get(),
-            meetingContentDao = get(),
-            assignmentDao = get(),
-            attendanceDao = get()
+//            studentDao = get(),
+//            courseDao = get(),
+//            meetingDao = get(),
+//            meetingContentDao = get(),
+//            assignmentDao = get(),
+//            attendanceDao = get()
         )
     }
     viewModel { LmsViewModel(get(), get()) }

@@ -1,26 +1,6 @@
 package com.gaje48.lms.model
 
-import kotlinx.serialization.Serializable
 import java.io.InputStream
-
-data class LmsUiState(
-    val isSplashReady: Boolean = false,
-    val isLoading: Boolean = false,
-    val isAutoLoginLoading: Boolean = false,
-    val isRefreshing: Boolean = false,
-    val isLogin: Boolean = false,
-    val errorMessage: String? = null,
-    val studentInfo: StudentInfo? = null,
-    val allCourseInfo: List<CourseInfo> = emptyList(),
-    val allPresenceInfo: Map<String, List<Boolean>> = emptyMap(),
-    val allMeetingContent: List<MeetingContent> = emptyList(),
-    val allTaskInfo: Map<Int, TaskInfo> = emptyMap(),
-    val allPresenceStatus: List<StatusPresensi> = emptyList(),
-    val uploadProgress: Float = 0f,
-    val uploadFileName: String = "",
-    val isUploading: Boolean = false,
-    val isPresenceSubmitting: Boolean = false,
-)
 
 sealed interface StatusPresensi {
     data object SudahHadir : StatusPresensi
@@ -34,46 +14,61 @@ enum class LoadMode {
 }
 
 data class DashboardData(
-    val studentInfo: StudentInfo,
-    val courses: List<CourseInfo>,
-    val presences: Map<String, List<Boolean>>
+    val student: Student,
+    val courses: List<Course>,
+    val presences: List<AttendancesByCourse>,
+    val meetings: List<MeetingsByCourse>
 )
 
-data class StudentInfo(
-    val studentName: String,
+data class Student(
     val npm: String,
+    val studentName: String,
     val studyProgram: String,
     val classCode: String,
-    val studentPhoto: String
+    val studentProfilePictureUrl: String
 )
 
-@Serializable
-data class CourseInfo(
+data class Course(
     val courseCode: String,
     val courseName: String,
     val day: String,
     val clock: String,
     val room: String,
     val lecturerName: String,
-    val lecturerHp: String,
-    val lecturerPhoto: String,
-    val allMeeting: Map<Int, String>
+    val lecturerPhoneNumber: String,
+    val lecturerProfilePictureUrl: String
 )
 
-data class MeetingContent(val type: String, val desc: String, val url: String)
+data class AttendancesByCourse(
+    val courseCode: String,
+    val attendances: List<Boolean>
+)
 
-data class TaskInfo(
-    val taskUrl: String,
-    val message: String?,
-    val taskFile: String?,
+data class MeetingsByCourse(
+    val courseCode: String,
+    val meetings: List<Meeting>
+)
+
+data class Meeting(
+    val meetingNumber: Int,
+    val meetingUrl: String
+)
+
+data class Content(val type: String, val title: String, val contentUrl: String)
+
+data class Assignment(
+    val meetingNumber: Int,
+    val assignmentUrl: String,
+    val description: String?,
+    val assignmentFileUrl: String?,
     val deadline: String,
-    val viewUrl: String?,
+    val submissionFileUrl: String?,
     val isSubmitted: Boolean,
-    val isExpired: Boolean
+    val isOverdue: Boolean
 )
 
 data class FileSource(val name: String, val size: Long, val stream: InputStream)
 
-class SessionExpiredException : Exception()
+class SessionExpiredException : Exception("Session has expired. Please login again.")
 
-class AccountProblemException : Exception()
+class AccountProblemException : Exception("There is a problem with your account.")

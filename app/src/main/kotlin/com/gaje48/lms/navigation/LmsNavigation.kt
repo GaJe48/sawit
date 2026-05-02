@@ -41,13 +41,13 @@ object LoginNavKey : NavKey
 @Serializable
 object DashboardNavKey : NavKey
 @Serializable
-data class MeetingListNavKey(val course: CourseInfo) : NavKey
+data class MeetingListNavKey(val courseCode: String) : NavKey
 @Serializable
 data class MeetingDetailNavKey(val meetingUrl: String) : NavKey
 @Serializable
-data class TaskNavKey(val course: CourseInfo) : NavKey
+data class TaskNavKey(val courseCode: String) : NavKey
 @Serializable
-data class PresenceNavKey(val course: CourseInfo) : NavKey
+data class PresenceNavKey(val courseCode: String) : NavKey
 
 @Composable
 fun LmsApp(viewModel: LmsViewModel = koinViewModel()) {
@@ -98,16 +98,16 @@ fun LmsApp(viewModel: LmsViewModel = koinViewModel()) {
                 entry<DashboardNavKey> {
                     Dashboard(
                         viewModel,
-                        onCourseClick = { backStack.add(MeetingListNavKey(it)) },
-                        onPresenceClick = { backStack.add(PresenceNavKey(it)) },
-                        onTaskClick = { backStack.add(TaskNavKey(it)) },
+                        onCourseClick = { backStack.add(MeetingListNavKey(it.courseCode)) },
+                        onPresenceClick = { backStack.add(PresenceNavKey(it.courseCode)) },
+                        onTaskClick = { backStack.add(TaskNavKey(it.courseCode)) },
                     )
                 }
 
                 entry<MeetingListNavKey> { destination ->
                     MeetingList(
                         viewModel = viewModel,
-                        course = destination.course,
+                        courseCode = destination.courseCode,
                         onBackClick = { backStack.removeAt(backStack.lastIndex) },
                         onMeetingClick = { meetingUrl ->
                             backStack.add(MeetingDetailNavKey(meetingUrl))
@@ -126,14 +126,14 @@ fun LmsApp(viewModel: LmsViewModel = koinViewModel()) {
                 entry<TaskNavKey> { destination ->
                     AssignmentScreen(
                         viewModel = viewModel,
-                        course = destination.course,
+                        courseCode = destination.courseCode,
                         onBackClick = { backStack.removeAt(backStack.lastIndex) }
                     )
                 }
 
                 entry<PresenceNavKey> { destination ->
                     LayarRekapAbsen(
-                        course = destination.course,
+                        courseCode = destination.courseCode,
                         viewModel = viewModel,
                         onBackClick = { backStack.removeAt(backStack.lastIndex) }
                     )

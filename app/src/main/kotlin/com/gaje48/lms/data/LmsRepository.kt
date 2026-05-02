@@ -2,6 +2,7 @@ package com.gaje48.lms.data
 
 import android.net.Uri
 import com.gaje48.lms.model.AccountProblemException
+import com.gaje48.lms.model.MeetingUrl
 import com.gaje48.lms.model.SessionExpiredException
 
 class LmsRepository(
@@ -42,11 +43,11 @@ class LmsRepository(
         withAutoReLogin { internetDataSource.getAllMeetingContent(meetingUrl) }
     }
 
-    suspend fun fetchPresenceDetail(allMeeting: Map<Int, String>, allPresenceInfo: List<Boolean>) = runCatching {
+    suspend fun fetchPresenceDetail(allMeeting: List<MeetingUrl>, allPresenceInfo: List<Boolean>) = runCatching {
         withAutoReLogin { internetDataSource.getAllPresenceStatus(allMeeting, allPresenceInfo) }
     }
 
-    suspend fun fetchTasks(courseMeetings: Map<Int, String>) = runCatching {
+    suspend fun fetchTasks(courseMeetings: List<MeetingUrl>) = runCatching {
         withAutoReLogin { internetDataSource.getAllTask(courseMeetings) }
     }
 

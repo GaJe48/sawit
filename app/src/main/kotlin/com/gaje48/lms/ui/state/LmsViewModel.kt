@@ -55,7 +55,8 @@ class LmsViewModel(
                             isLogin = true,
                             studentInfo = it.studentInfo,
                             allCourseInfo = it.courses,
-                            allPresenceInfo = it.presences
+                            allPresenceInfo = it.presences,
+                            allMeetingInfo = it.meetings
                         )
                     }
                 }
@@ -78,7 +79,8 @@ class LmsViewModel(
                             isLogin = true,
                             studentInfo = it.studentInfo,
                             allCourseInfo = it.courses,
-                            allPresenceInfo = it.presences
+                            allPresenceInfo = it.presences,
+                            allMeetingInfo = it.meetings
                         )
                     }
                 }
@@ -105,7 +107,8 @@ class LmsViewModel(
                         copy(
                             studentInfo = it.studentInfo,
                             allCourseInfo = it.courses,
-                            allPresenceInfo = it.presences
+                            allPresenceInfo = it.presences,
+                            allMeetingInfo = it.meetings
                         )
                     }
                 }
@@ -141,7 +144,8 @@ class LmsViewModel(
     }
 
     fun submitPresence(courses: CourseInfo, url: String) {
-        val presence = uiState.value.allPresenceInfo
+        val presence = uiState.value.allPresenceInfo.find { it.courseCode == courses.courseCode }?.presences ?: emptyList()
+        val allMeeting = uiState.value.allMeetingInfo.find { it.courseCode == courses.courseCode }?.meetings ?: emptyList()
 
         viewModelScope.launch {
             updateState { copy(isPresenceSubmitting = true) }
@@ -149,8 +153,8 @@ class LmsViewModel(
             lmsRepository.executePresence(url).onFailure { emitSnackbar(it.toString()) }
 
             lmsRepository.fetchPresenceDetail(
-                courses.allMeeting,
-                presence[courses.courseCode] ?: emptyList()
+                allMeeting,
+                presence
             )
                 .onSuccess { updateState { copy(allPresenceStatus = it) } }
                 .onFailure { emitSnackbar(it.toString()) }
@@ -160,7 +164,8 @@ class LmsViewModel(
     }
 
     fun loadPresence(courses: CourseInfo, loadMode: LoadMode = LoadMode.LOADING) {
-        val presence = uiState.value.allPresenceInfo
+        val presence = uiState.value.allPresenceInfo.find { it.courseCode == courses.courseCode }?.presences ?: emptyList()
+        val allMeeting = uiState.value.allMeetingInfo.find { it.courseCode == courses.courseCode }?.meetings ?: emptyList()
 
         viewModelScope.launch {
             when (loadMode) {
@@ -171,8 +176,8 @@ class LmsViewModel(
             }
 
             lmsRepository.fetchPresenceDetail(
-                courses.allMeeting,
-                presence[courses.courseCode] ?: emptyList()
+                allMeeting,
+                presence
             )
                 .onSuccess { updateState { copy(allPresenceStatus = it) } }
                 .onFailure {
@@ -186,15 +191,17 @@ class LmsViewModel(
     }
 
     fun loadTasks(courses: CourseInfo, loadMode: LoadMode = LoadMode.LOADING) {
+        val allMeeting = uiState.value.allMeetingInfo.find { it.courseCode == courses.courseCode }?.meetings ?: emptyList()
+
         viewModelScope.launch {
             when (loadMode) {
                 LoadMode.REFRESH -> updateState { copy(isRefreshing = true, errorMessage = null) }
                 LoadMode.LOADING -> updateState {
-                    copy(isLoading = true, errorMessage = null, allTaskInfo = emptyMap())
+                    copy(isLoading = true, errorMessage = null, allTaskInfo = emptyList())
                 }
             }
 
-            lmsRepository.fetchTasks(courses.allMeeting)
+            lmsRepository.fetchTasks(allMeeting)
                 .onSuccess { updateState { copy(allTaskInfo = it) } }
                 .onFailure {
                     val message = it.toString()

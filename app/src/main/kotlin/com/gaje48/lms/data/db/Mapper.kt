@@ -1,61 +1,61 @@
 package com.gaje48.lms.data.db
 
-import com.gaje48.lms.model.CourseInfo
-import com.gaje48.lms.model.MeetingContent
-import com.gaje48.lms.model.StudentInfo
-import com.gaje48.lms.model.TaskInfo
+import com.gaje48.lms.model.Course
+import com.gaje48.lms.model.MeetingsByCourse
+import com.gaje48.lms.model.AttendancesByCourse
+import com.gaje48.lms.model.Content
+import com.gaje48.lms.model.Student
+import com.gaje48.lms.model.Assignment
 
-fun StudentInfo.toEntity() = StudentEntity(
+fun Student.toEntity() = StudentEntity(
     npm = npm,
-    name = studentName,
+    studentName = studentName,
     studyProgram = studyProgram,
     classCode = classCode,
-    profilePictureUrl = studentPhoto
+    studentProfilePictureUrl = studentProfilePictureUrl
 )
 
-fun CourseInfo.toEntity() = CourseEntity(
+fun Course.toEntity() = CourseEntity(
     courseCode = courseCode,
     courseName = courseName,
     day = day,
-    time = clock,
+    clock = clock,
     room = room,
     lecturerName = lecturerName,
-    lecturerPhoneNumber = lecturerHp,
-    lecturerProfilePictureUrl = lecturerPhoto
+    lecturerPhoneNumber = lecturerPhoneNumber,
+    lecturerProfilePictureUrl = lecturerProfilePictureUrl
 )
 
-fun CourseInfo.toMeetingEntities() = allMeeting.map { (meetingIndex, meetingUrl) ->
+fun MeetingsByCourse.toMeetingEntities() = meetings.map { (meetingNumber, meetingUrl) ->
     MeetingEntity(
         courseCode = courseCode,
-        meetingIndex = meetingIndex,
+        meetingNumber = meetingNumber,
         meetingUrl = meetingUrl
     )
 }
 
-fun Map<String, List<Boolean>>.toAttendanceEntities() = flatMap { (courseCode, presences) ->
-    presences.mapIndexed { index, isAttended ->
-        AttendanceEntity(
-            courseCode = courseCode,
-            attendanceIndex = index,
-            isAttended = isAttended
-        )
-    }
+fun AttendancesByCourse.toAttendanceEntities() = attendances.mapIndexed { index, isAttended ->
+    AttendanceEntity(
+        courseCode = courseCode,
+        attendanceIndex = index,
+        isAttended = isAttended
+    )
 }
 
-fun MeetingContent.toEntity(meetingUrl: String) = MeetingContentEntity(
+fun Content.toEntity(meetingUrl: String) = ContentEntity(
     meetingId = meetingUrl,
-    contentType = type,
-    title = desc,
-    contentUrl = url
+    type = type,
+    title = title,
+    contentUrl = contentUrl
 )
 
-fun TaskInfo.toEntity(meetingUrl: String) = AssignmentEntity(
+fun Assignment.toEntity(meetingUrl: String) = AssignmentEntity(
     meetingId = meetingUrl,
-    assignmentUrl = taskUrl,
-    description = message,
-    assignmentFileUrl = taskFile,
-    submissionFileUrl = viewUrl,
-    dueDate = deadline,
+    assignmentUrl = assignmentUrl,
+    description = description,
+    assignmentFileUrl = assignmentFileUrl,
+    submissionFileUrl = submissionFileUrl,
+    deadline = deadline,
     isSubmitted = isSubmitted,
-    isOverdue = isExpired
+    isOverdue = isOverdue
 )

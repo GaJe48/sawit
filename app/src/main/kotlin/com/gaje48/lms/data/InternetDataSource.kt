@@ -8,6 +8,10 @@ import com.gaje48.lms.model.DashboardData
 import com.gaje48.lms.model.MeetingContent
 import com.gaje48.lms.model.SessionExpiredException
 import com.gaje48.lms.model.StatusPresensi
+import com.gaje48.lms.model.CourseMeeting
+import com.gaje48.lms.model.CoursePresence
+import com.gaje48.lms.model.MeetingTask
+import com.gaje48.lms.model.MeetingUrl
 import com.gaje48.lms.model.StudentInfo
 import com.gaje48.lms.model.TaskInfo
 import com.google.mlkit.vision.common.InputImage
@@ -121,10 +125,11 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
         val presences = async { getAllPresenceInfo() }
 
         val dashboardHtml = webClient.get("https://lms.unindra.ac.id/member").bodyAsText()
-        val courses = async { parseAllCourseInfo(dashboardHtml) }
+        val coursesAndMeetingsDeferred = async { parseAllCourseInfo(dashboardHtml) }
         val studentInfo = async { parseStudentInfo(dashboardHtml) }
 
-        DashboardData(studentInfo.await(), courses.await(), presences.await())
+        val (courses, meetings) = coursesAndMeetingsDeferred.await()
+        DashboardData(studentInfo.await(), courses, presences.await(), meetings)
     }
 
     private fun parseStudentInfo(dashboardHtml: String): StudentInfo {
@@ -144,22 +149,22 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
         )
     }
 
-    private fun parseAllCourseInfo(dashboardHtml: String): List<CourseInfo> {
+    private fun parseAllCourseInfo(dashboardHtml: String): Pair<List<CourseInfo>, List<CourseMeeting>> {
         val dashboardParser = Jsoup.parse(dashboardHtml)
 
-        val meetingDict = dashboardParser.select("li.treeview").associate { tree ->
-            val parts = tree.selectFirst("span")!!.text().split(" ")
+        val allMeeting = dashboardParser.select("li.treeview").associate { tree ->
+            val (day, time) = tree.selectFirst("span")!!.text().split(" ")
 
-            val meetings = tree.select("ul li a").associate { aTag ->
+            val meetings = tree.select("ul li a").map { aTag ->
                 val title = aTag.text()
                 val url = aTag.attr("href")
 
                 val meetingNumber = Regex("(\\d+)").find(title)!!.value.toInt()
 
-                meetingNumber - 1 to url
+                MeetingUrl(meetingNumber - 1, url)
             }
 
-            "${parts[0]} ${parts[1]}" to meetings
+            "$day $time" to meetings
         }
 
         return dashboardParser.select("div.box-widget").map { el ->
@@ -167,41 +172,42 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
             val lecturerName = rawLecturer.lowercase().split(" ")
                 .joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
 
-            val rawCourse = el.selectFirst("span.header_badeg")!!.text().split(" -")
-            val courseCode = rawCourse[0]
+            val (courseCode, rawCourseName) = el.selectFirst("span.header_badeg")!!.text().split(" -")
 
-            val courseName = when (val parsedName = rawCourse[1]) {
+            val courseName = when (rawCourseName) {
                 "Arsitektur dan Organisasi Komput" -> "Arsitektur dan Organisasi Komputer"
-                else -> parsedName.trimEnd(' ', '*', '#', ')')
+                else -> rawCourseName.trimEnd(' ', '*', '#', ')')
             }
 
-            val detailParts = el.selectFirst("span.text-green")!!.text()
+            val (_, room, time) = el.selectFirst("span.text-green")!!.text()
                 .split("|").map { it.trim() }
-            val rawTime = detailParts[2].replace("Waktu: ", "").split(", ")
-            val day = rawTime[0]
-            val clock = rawTime[1]
+            val (day, clock) = time.replace("Waktu: ", "").split(", ")
 
-            CourseInfo(
+            val meetingsForCourse = allMeeting["$day $clock"] ?: emptyList()
+            val courseMeeting = CourseMeeting(courseCode, meetingsForCourse)
+
+            val courseInfo = CourseInfo(
                 courseCode = courseCode,
                 courseName = courseName,
                 day = day,
                 clock = clock,
-                room = detailParts[1].replace("Ruang: ", ""),
+                room = room.replace("Ruang: ", ""),
                 lecturerName = lecturerName,
                 lecturerHp = el.selectFirst("h5.widget-user-desc")!!.text()
                     .replace("HP :", "").trim().ifEmpty { "Nomor HP tidak tersedia" },
-                lecturerPhoto = el.selectFirst("img")!!.attr("src"),
-                allMeeting = meetingDict["$day $clock"] ?: emptyMap()
+                lecturerPhoto = el.selectFirst("img")!!.attr("src")
             )
-        }
+
+            courseInfo to courseMeeting
+        }.unzip()
     }
 
-    suspend fun getAllPresenceInfo(): Map<String, List<Boolean>> = coroutineScope {
+    suspend fun getAllPresenceInfo(): List<CoursePresence> = coroutineScope {
         val presenceHtml = webClient.get("https://lms.unindra.ac.id/presensi").bodyAsText()
         val presenceParser = Jsoup.parse(presenceHtml)
 
         val nimId = presenceParser.selectFirst("td[onclick*=absensi_mhs]")
-            ?.attr("onclick")?.split("'")[3] ?: return@coroutineScope emptyMap()
+            ?.attr("onclick")?.split("'")[3] ?: return@coroutineScope emptyList()
 
         presenceParser.select("table.table-striped tbody tr").map { row ->
             async(ioDispatcher) {
@@ -219,16 +225,16 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
 
                 val parser = Jsoup.parse(html)
                 val barisMahasiswa = parser.selectFirst("table.table-bordered tbody tr")
-                    ?: return@async courseCode to emptyList()
+                    ?: return@async CoursePresence(courseCode, emptyList())
 
                 val cols = barisMahasiswa.select("td")
                 val listStatusHadir = (3..<cols.size - 1).map { i ->
                     cols[i].selectFirst("i.fa-calendar-check-o") != null
                 }
 
-                courseCode to listStatusHadir
+                CoursePresence(courseCode, listStatusHadir)
             }
-        }.awaitAll().toMap()
+        }.awaitAll()
     }
 
     suspend fun getAllMeetingContent(meetingUrl: String): List<MeetingContent> {
@@ -257,14 +263,14 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
     }
 
     suspend fun getAllPresenceStatus(
-        allMeeting: Map<Int, String>,
+        allMeeting: List<MeetingUrl>,
         allPresenceInfo: List<Boolean>
     ): List<StatusPresensi> = coroutineScope {
         allPresenceInfo.mapIndexed { index, isHadir ->
             async {
                 if (isHadir) return@async StatusPresensi.SudahHadir
 
-                val meetUrl = allMeeting[index] ?: return@async StatusPresensi.BelumHadirTanpaLink
+                val meetUrl = allMeeting.find { it.meetingIndex == index }?.url ?: return@async StatusPresensi.BelumHadirTanpaLink
 
                 val meetHtml = webClient.get(meetUrl).bodyAsText()
                 val link = Jsoup.parse(meetHtml).selectFirst("a[href*=force_download]")
@@ -274,7 +280,7 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
         }.awaitAll()
     }
 
-    suspend fun getAllTask(courseMeetings: Map<Int, String>): Map<Int, TaskInfo> = coroutineScope {
+    suspend fun getAllTask(courseMeetings: List<MeetingUrl>): List<MeetingTask> = coroutineScope {
         fun extractFileUrl(container: Element): String? {
             val pdfId = container.selectFirst("a[onclick*=lihat_pdf]")?.attr("onclick")
                 ?.substringAfter("'", "")?.substringBefore("'")
@@ -291,7 +297,7 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
             }
         }
 
-        courseMeetings.map { (index, meetingUrl) ->
+        courseMeetings.map { (meetingIndex, meetingUrl) ->
             async {
                 val html = webClient.get(meetingUrl).bodyAsText()
                 val taskUrl = Jsoup.parse(html).selectFirst("a[href*=member_tugas]")
@@ -316,9 +322,12 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
                 val isSubmitted = taskHtml.contains("Sudah Submit")
                 val isExpired = taskHtml.contains("Waktu Submit sudah berakhir")
 
-                index to TaskInfo(taskUrl, message, taskFile, deadline, viewUrl, isSubmitted, isExpired)
+                MeetingTask(
+                    meetingIndex,
+                    TaskInfo(taskUrl, message, taskFile, deadline, viewUrl, isSubmitted, isExpired)
+                )
             }
-        }.awaitAll().filterNotNull().toMap()
+        }.awaitAll().filterNotNull()
     }
 
     suspend fun executePresence(fileUrl: String) = webClient.get(fileUrl)

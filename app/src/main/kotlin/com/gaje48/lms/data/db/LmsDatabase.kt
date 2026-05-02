@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
         StudentEntity::class,
         CourseEntity::class,
         MeetingEntity::class,
-        MeetingContentEntity::class,
+        ContentEntity::class,
         AssignmentEntity::class,
         AttendanceEntity::class
     ],

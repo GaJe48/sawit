@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gaje48.lms.model.CourseInfo
+import com.gaje48.lms.model.CoursePresence
 import com.gaje48.lms.model.StudentInfo
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.state.LmsViewModel
@@ -97,8 +98,7 @@ fun PreviewDashboard() {
         room = "V.202",
         lecturerName = "Pak Dosen",
         lecturerHp = "0812345",
-        lecturerPhoto = "",
-        allMeeting = emptyMap()
+        lecturerPhoto = ""
     )
 
     val dummyList = listOf(dummyCourse, dummyCourse, dummyCourse, dummyCourse, dummyCourse)
@@ -107,7 +107,7 @@ fun PreviewDashboard() {
         DashboardContent(
             studentInfo = dummyProfile,
             allCourseInfo = dummyList,
-            allPresenceInfo = emptyMap(),
+            allPresenceInfo = emptyList(),
             isRefreshing = false,
             onRefresh = {},
             onCourseClick = {},
@@ -145,7 +145,7 @@ fun Dashboard(
 fun DashboardContent(
     studentInfo: StudentInfo,
     allCourseInfo: List<CourseInfo>,
-    allPresenceInfo: Map<String, List<Boolean>>,
+    allPresenceInfo: List<CoursePresence>,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onCourseClick: (CourseInfo) -> Unit,
@@ -363,7 +363,7 @@ fun DashboardContent(
 @Composable
 fun CourseExpressiveCard(
     course: CourseInfo,
-    presenceInfo: Map<String, List<Boolean>>,
+    presenceInfo: List<CoursePresence>,
     onCourseClick: (CourseInfo) -> Unit,
     onPresenceClick: (CourseInfo) -> Unit,
     onTaskClick: (CourseInfo) -> Unit
@@ -422,7 +422,7 @@ fun CourseExpressiveCard(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            AttendanceGraph(presenceInfo[course.courseCode] ?: emptyList())
+            AttendanceGraph(presenceInfo.find { it.courseCode == course.courseCode }?.presences ?: emptyList())
 
             Spacer(modifier = Modifier.height(20.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

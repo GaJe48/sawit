@@ -8,10 +8,10 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "student")
 data class StudentEntity(
     @PrimaryKey val npm: String,
-    val name: String,
+    val studentName: String,
     val studyProgram: String,
     val classCode: String,
-    val profilePictureUrl: String,
+    val studentProfilePictureUrl: String,
     val cachedAt: Long = System.currentTimeMillis()
 )
 
@@ -20,7 +20,7 @@ data class CourseEntity(
     @PrimaryKey val courseCode: String,
     val courseName: String,
     val day: String,
-    val time: String,
+    val clock: String,
     val room: String,
     val lecturerName: String,
     val lecturerPhoneNumber: String,
@@ -41,12 +41,12 @@ data class CourseEntity(
 data class MeetingEntity(
     @PrimaryKey val meetingUrl: String,
     val courseCode: String,
-    val meetingIndex: Int,
+    val meetingNumber: Int,
     val cachedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(
-    tableName = "meeting_content",
+    tableName = "content",
     foreignKeys = [ForeignKey(
         entity = MeetingEntity::class,
         parentColumns = ["meetingUrl"],
@@ -55,10 +55,10 @@ data class MeetingEntity(
     )],
     indices = [Index("meetingId")]
 )
-data class MeetingContentEntity(
+data class ContentEntity(
     @PrimaryKey val contentUrl: String,
     val meetingId: String,
-    val contentType: String,
+    val type: String,
     val title: String,
     val cachedAt: Long = System.currentTimeMillis()
 )
@@ -79,7 +79,7 @@ data class AssignmentEntity(
     val description: String?,
     val assignmentFileUrl: String?,
     val submissionFileUrl: String?,
-    val dueDate: String,
+    val deadline: String,
     val isSubmitted: Boolean,
     val isOverdue: Boolean,
     val cachedAt: Long = System.currentTimeMillis()

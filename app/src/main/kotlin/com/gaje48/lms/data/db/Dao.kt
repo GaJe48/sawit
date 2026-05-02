@@ -63,17 +63,17 @@ interface MeetingDao {
 
 @Dao
 interface MeetingContentDao {
-    @Query("SELECT * FROM meeting_content WHERE meetingId = :meetingId")
-    fun observeAll(meetingId: Int): Flow<List<MeetingContentEntity>>
+    @Query("SELECT * FROM content WHERE meetingId = :meetingId")
+    fun observeAll(meetingId: Int): Flow<List<ContentEntity>>
 
     @Upsert
-    suspend fun upsertAll(contents: List<MeetingContentEntity>)
+    suspend fun upsertAll(contents: List<ContentEntity>)
 
-    @Query("DELETE FROM meeting_content WHERE contentUrl NOT IN (:contentUrls)")
+    @Query("DELETE FROM content WHERE contentUrl NOT IN (:contentUrls)")
     suspend fun clearByContentUrls(contentUrls: List<String>)
 
     @Transaction
-    suspend fun saveAll(contents: List<MeetingContentEntity>) {
+    suspend fun saveAll(contents: List<ContentEntity>) {
         upsertAll(contents)
 
         val contentUrls = contents.map { it.contentUrl }

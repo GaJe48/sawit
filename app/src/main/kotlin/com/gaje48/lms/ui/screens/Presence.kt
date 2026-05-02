@@ -46,11 +46,12 @@ import dev.chrisbanes.haze.rememberHazeState
 
 @Composable
 fun LayarRekapAbsen(
-    course: CourseInfo,
+    courseCode: String,
     viewModel: LmsViewModel,
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val course = uiState.allCourseInfo.find { it.courseCode == courseCode } ?: return
 
     LaunchedEffect(course) {
         viewModel.loadPresence(course)

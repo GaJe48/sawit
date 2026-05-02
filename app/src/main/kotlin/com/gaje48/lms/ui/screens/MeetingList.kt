@@ -63,7 +63,7 @@ import dev.chrisbanes.haze.rememberHazeState
 @Composable
 fun MeetingList(
     viewModel: LmsViewModel,
-    course: CourseInfo,
+    courseCode: String,
     onBackClick: () -> Unit,
     onMeetingClick: (String) -> Unit
 ) {
@@ -71,6 +71,7 @@ fun MeetingList(
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val state = rememberPullToRefreshState()
+    val course = uiState.allCourseInfo.find { it.courseCode == courseCode } ?: return
 
     Box(
         modifier = Modifier
@@ -214,7 +215,9 @@ fun MeetingList(
                         }
                     }
 
-                    if (course.allMeeting.isEmpty()) {
+                    val allMeeting = uiState.allMeetingInfo.find { it.courseCode == course.courseCode }?.meetings ?: emptyList()
+                    
+                    if (allMeeting.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.7f),
@@ -231,10 +234,10 @@ fun MeetingList(
                             )
                         }
 
-                        items(course.allMeeting.toList()) { (index, pertemuan) ->
+                        items(allMeeting) { meeting ->
                             MeetingExpressiveItem(
-                                index = index + 1,
-                                onItemClick = { onMeetingClick(pertemuan) },
+                                index = meeting.meetingIndex + 1,
+                                onItemClick = { onMeetingClick(meeting.url) },
                             )
                         }
                     }
