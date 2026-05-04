@@ -1,4 +1,4 @@
-package com.gaje48.lms.ui.screens
+package com.gaje48.lms.ui.screens.login
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -50,10 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gaje48.lms.ui.components.LoadingGif
-import com.gaje48.lms.ui.state.LmsViewModel
 
 @Composable
-fun Login(viewModel: LmsViewModel) {
+fun LoginScreen(viewModel: LoginViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isLoading = uiState.isLoading
     val isAutoLoginLoading = uiState.isAutoLoginLoading

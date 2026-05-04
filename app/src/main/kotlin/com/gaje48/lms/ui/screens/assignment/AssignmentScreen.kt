@@ -1,4 +1,4 @@
-package com.gaje48.lms.ui.screens
+package com.gaje48.lms.ui.screens.assignment
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,7 +36,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -47,11 +46,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -62,13 +58,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gaje48.lms.model.CourseInfo
+import com.gaje48.lms.model.Assignment
 import com.gaje48.lms.model.LoadMode
-import com.gaje48.lms.model.TaskInfo
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.ErrorGif
 import com.gaje48.lms.ui.components.LoadingGif
-import com.gaje48.lms.ui.state.LmsViewModel
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -78,31 +72,35 @@ import dev.chrisbanes.haze.rememberHazeState
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AssignmentScreen(
-    viewModel: LmsViewModel,
-    courseCode: String,
+    viewModel: AssignmentViewModel,
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val course = uiState.allCourseInfo.find { it.courseCode == courseCode } ?: return
-    val allTaskDetail = uiState.allTaskInfo
+    val courseName = uiState.courseName ?: return
+    val assignments = uiState.assignments
     val isLoading = uiState.isLoading
     val errorMessage = uiState.errorMessage
-    val isUploading = uiState.isUploading
-    val uploadProgress = uiState.uploadProgress
-    val uploadFileName = uiState.uploadFileName
     val uriHandler = LocalUriHandler.current
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val state = rememberPullToRefreshState()
-    var currentSubmitUrl by remember { mutableStateOf("") }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    var currentSubmitUrl = remember { "" }
+    val mimeTypes = arrayOf(
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/zip",
+            "application/x-7z-compressed",
+            "application/x-rar-compressed"
+    )
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
-            viewModel.submitTask(it, currentSubmitUrl)
+            viewModel.uploadSubmission(it, currentSubmitUrl)
         }
-    }
-
-    LaunchedEffect(course) {
-        viewModel.loadTasks(course)
     }
 
     Box(
@@ -126,7 +124,7 @@ fun AssignmentScreen(
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
             state = state,
-            onRefresh = { viewModel.loadTasks(course, LoadMode.REFRESH) },
+            onRefresh = { viewModel.fetchAssignments(LoadMode.REFRESH) },
             contentAlignment = Alignment.TopCenter,
             indicator = {
                 PullToRefreshDefaults.LoadingIndicator(
@@ -158,7 +156,7 @@ fun AssignmentScreen(
                                     fontWeight = FontWeight.ExtraBold
                                 )
                                 Text(
-                                    course.courseName,
+                                    courseName,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -189,49 +187,7 @@ fun AssignmentScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    if (isUploading) {
-                        item {
-                            ElevatedCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            ) {
-                                Column(modifier = Modifier.padding(20.dp)) {
-                                    Text(
-                                        text = "Mengunggah Tugas",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = uploadFileName,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                    )
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    LinearProgressIndicator(
-                                        progress = { uploadProgress },
-                                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "${(uploadProgress * 100).toInt()}%",
-                                        modifier = Modifier.align(Alignment.End),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if (allTaskDetail.isEmpty() && !isUploading) {
+                    if (assignments.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxSize(),
@@ -241,26 +197,25 @@ fun AssignmentScreen(
                                     isLoading -> LoadingGif()
                                     errorMessage != null -> ErrorGif(
                                         message = errorMessage,
-                                        onRetry = { viewModel.loadTasks(course) }
+                                        onRetry = { viewModel.fetchAssignments() }
                                     )
                                     else -> EmptyGif()
                                 }
                             }
                         }
                     } else {
-                        items(allTaskDetail) { meetingTask ->
+                        items(assignments) { assignment ->
                             TaskExpressiveCard(
-                                pertemuanKe = meetingTask.meetingIndex + 1,
-                                taskInfo = meetingTask.taskInfo,
+                                assignment = assignment,
                                 onDownloadClick = {
-                                    meetingTask.taskInfo.taskFile?.let(viewModel::downloadFile)
+                                    assignment.assignmentFileUrl?.let(viewModel::downloadFile)
                                 },
                                 onViewPdfClick = {
-                                    meetingTask.taskInfo.viewUrl?.let(uriHandler::openUri)
+                                    assignment.submissionFileUrl?.let(uriHandler::openUri)
                                 },
                                 onSubmitClick = {
-                                    currentSubmitUrl = meetingTask.taskInfo.taskUrl
-                                    launcher.launch("*/*")
+                                    currentSubmitUrl = assignment.assignmentUrl
+                                    launcher.launch(mimeTypes)
                                 }
                             )
                         }
@@ -273,21 +228,20 @@ fun AssignmentScreen(
 
 @Composable
 fun TaskExpressiveCard(
-    pertemuanKe: Int,
-    taskInfo: TaskInfo,
+    assignment: Assignment,
     onDownloadClick: () -> Unit,
     onViewPdfClick: () -> Unit,
     onSubmitClick: () -> Unit
 ) {
     val statusColor = when {
-        taskInfo.isExpired -> MaterialTheme.colorScheme.error
-        taskInfo.isSubmitted -> MaterialTheme.colorScheme.primary
+        assignment.isOverdue -> MaterialTheme.colorScheme.error
+        assignment.isSubmitted -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.secondary
     }
 
     val statusLabel = when {
-        taskInfo.isSubmitted -> "Sudah Dikumpulkan"
-        taskInfo.isExpired -> "Waktu Berakhir"
+        assignment.isSubmitted -> "Sudah Dikumpulkan"
+        assignment.isOverdue -> "Waktu Berakhir"
         else -> "Belum Dikumpulkan"
     }
 
@@ -311,7 +265,7 @@ fun TaskExpressiveCard(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = pertemuanKe.toString(),
+                            text = (assignment.meetingNumber + 1).toString(),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.tertiary
@@ -342,7 +296,7 @@ fun TaskExpressiveCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            taskInfo.message?.let {
+            assignment.description?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyLarge,
@@ -366,7 +320,7 @@ fun TaskExpressiveCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Batas: ${taskInfo.deadline}",
+                    text = "Batas: ${assignment.deadline}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
@@ -379,7 +333,7 @@ fun TaskExpressiveCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                taskInfo.taskFile?.let {
+                assignment.assignmentFileUrl?.let {
                     FilledTonalButton(
                         onClick = onDownloadClick,
                         modifier = Modifier.weight(1f),
@@ -392,7 +346,7 @@ fun TaskExpressiveCard(
                     }
                 }
 
-                taskInfo.viewUrl?.let {
+                assignment.submissionFileUrl?.let {
                     if (it.isNotEmpty()) {
                         OutlinedButton(
                             onClick = onViewPdfClick,
@@ -408,7 +362,7 @@ fun TaskExpressiveCard(
                 }
             }
 
-            if (!taskInfo.isExpired) {
+            if (!assignment.isOverdue) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onSubmitClick,
@@ -418,7 +372,7 @@ fun TaskExpressiveCard(
                 ) {
                     Icon(Icons.Default.FileUpload, null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (taskInfo.isSubmitted) "Revisi Tugas" else "Kumpulkan Tugas", fontWeight = FontWeight.ExtraBold)
+                    Text(if (assignment.isSubmitted) "Revisi Tugas" else "Kumpulkan Tugas", fontWeight = FontWeight.ExtraBold)
                 }
             }
         }

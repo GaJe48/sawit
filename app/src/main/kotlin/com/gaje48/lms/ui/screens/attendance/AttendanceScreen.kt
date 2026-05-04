@@ -1,4 +1,4 @@
-package com.gaje48.lms.ui.screens
+package com.gaje48.lms.ui.screens.attendance
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,7 +20,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,13 +30,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gaje48.lms.model.CourseInfo
 import com.gaje48.lms.model.LoadMode
 import com.gaje48.lms.model.StatusPresensi
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.ErrorGif
 import com.gaje48.lms.ui.components.LoadingGif
-import com.gaje48.lms.ui.state.LmsViewModel
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -45,28 +42,23 @@ import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 
 @Composable
-fun LayarRekapAbsen(
-    courseCode: String,
-    viewModel: LmsViewModel,
+fun AttendanceScreen(
+    viewModel: AttendanceViewModel,
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val course = uiState.allCourseInfo.find { it.courseCode == courseCode } ?: return
-
-    LaunchedEffect(course) {
-        viewModel.loadPresence(course)
-    }
+    val courseName = uiState.courseName ?: return
 
     LayarRekapAbsenStateless(
-        courseName = course.courseName,
+        courseName = courseName,
         allPresenceDetail = uiState.allPresenceStatus,
         errorMessage = uiState.errorMessage,
         isLoading = uiState.isLoading,
         isPresenceSubmitting = uiState.isPresenceSubmitting,
         isRefreshing = uiState.isRefreshing,
-        onRefresh = { viewModel.loadPresence(course, LoadMode.REFRESH) },
-        onRetry = { viewModel.loadPresence(course) },
-        onAbsenClick = { viewModel.submitPresence(course, it) },
+        onRefresh = { viewModel.getAttendances(LoadMode.REFRESH) },
+        onRetry = { viewModel.getAttendances(LoadMode.LOADING) },
+        onAbsenClick = { viewModel.submitPresence(it) },
         onBackClick = onBackClick
     )
 }

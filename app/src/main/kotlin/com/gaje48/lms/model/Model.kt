@@ -16,8 +16,8 @@ enum class LoadMode {
 data class DashboardData(
     val student: Student,
     val courses: List<Course>,
-    val presences: List<AttendancesByCourse>,
-    val meetings: List<MeetingsByCourse>
+    val allPresences: List<AttendancesByCourse>,
+    val allMeetings: List<MeetingsByCourse>
 )
 
 data class Student(

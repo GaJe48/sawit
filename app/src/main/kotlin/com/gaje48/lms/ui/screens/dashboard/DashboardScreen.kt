@@ -1,4 +1,4 @@
-package com.gaje48.lms.ui.screens
+package com.gaje48.lms.ui.screens.dashboard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -67,11 +67,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.gaje48.lms.model.CourseInfo
-import com.gaje48.lms.model.CoursePresence
-import com.gaje48.lms.model.StudentInfo
+import com.gaje48.lms.model.Course
+import com.gaje48.lms.model.AttendancesByCourse
+import com.gaje48.lms.model.Student
 import com.gaje48.lms.ui.components.EmptyGif
-import com.gaje48.lms.ui.state.LmsViewModel
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -82,31 +81,31 @@ import kotlin.math.roundToInt
 @Preview
 @Composable
 fun PreviewDashboard() {
-    val dummyProfile = StudentInfo(
+    val dummyProfile = Student(
         studentName = "Abi Musa Abdurrahman",
         npm = "202443500660",
         studyProgram = "Teknik Informatika S1",
         classCode = "R7A",
-        studentPhoto = ""
+        studentProfilePictureUrl = ""
     )
 
-    val dummyCourse = CourseInfo(
+    val dummyCourse = Course(
         courseCode = "TIF123",
         courseName = "Pemrograman Mobile",
         day = "Senin",
         clock = "08:00 - 10:00",
         room = "V.202",
         lecturerName = "Pak Dosen",
-        lecturerHp = "0812345",
-        lecturerPhoto = ""
+        lecturerPhoneNumber = "0812345",
+        lecturerProfilePictureUrl = ""
     )
 
     val dummyList = listOf(dummyCourse, dummyCourse, dummyCourse, dummyCourse, dummyCourse)
 
     MaterialTheme {
         DashboardContent(
-            studentInfo = dummyProfile,
-            allCourseInfo = dummyList,
+            student = dummyProfile,
+            allCourse = dummyList,
             allPresenceInfo = emptyList(),
             isRefreshing = false,
             onRefresh = {},
@@ -119,17 +118,17 @@ fun PreviewDashboard() {
 }
 
 @Composable
-fun Dashboard(
-    viewModel: LmsViewModel,
-    onCourseClick: (CourseInfo) -> Unit,
-    onPresenceClick: (CourseInfo) -> Unit,
-    onTaskClick: (CourseInfo) -> Unit
+fun DashboardScreen(
+    viewModel: DashboardViewModel,
+    onCourseClick: (Course) -> Unit,
+    onPresenceClick: (Course) -> Unit,
+    onTaskClick: (Course) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     DashboardContent(
-        studentInfo = uiState.studentInfo ?: return,
-        allCourseInfo = uiState.allCourseInfo,
+        student = uiState.student ?: return,
+        allCourse = uiState.allCourse,
         allPresenceInfo = uiState.allPresenceInfo,
         isRefreshing = uiState.isRefreshing,
         onRefresh = { viewModel.refreshDashboard() },
@@ -143,14 +142,14 @@ fun Dashboard(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalHazeMaterialsApi::class)
 @Composable
 fun DashboardContent(
-    studentInfo: StudentInfo,
-    allCourseInfo: List<CourseInfo>,
-    allPresenceInfo: List<CoursePresence>,
+    student: Student,
+    allCourse: List<Course>,
+    allPresenceInfo: List<AttendancesByCourse>,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
-    onCourseClick: (CourseInfo) -> Unit,
-    onPresenceClick: (CourseInfo) -> Unit,
-    onTaskClick: (CourseInfo) -> Unit,
+    onCourseClick: (Course) -> Unit,
+    onPresenceClick: (Course) -> Unit,
+    onTaskClick: (Course) -> Unit,
     onLogout: () -> Unit,
 ) {
     val hazeState = rememberHazeState()
@@ -233,7 +232,7 @@ fun DashboardContent(
                         title = {
                             Column {
                                 Text(
-                                    text = "Halo, ${studentInfo.studentName.split(" ")[0]}",
+                                    text = "Halo, ${student.studentName.split(" ")[0]}",
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.ExtraBold
                                 )
@@ -290,7 +289,7 @@ fun DashboardContent(
                                     modifier = Modifier.size(84.dp)
                                 ) {
                                     AsyncImage(
-                                        model = studentInfo.studentPhoto,
+                                        model = student.studentProfilePictureUrl,
                                         contentDescription = "Foto Profil",
                                         modifier = Modifier
                                             .fillMaxSize()
@@ -301,7 +300,7 @@ fun DashboardContent(
                                 Spacer(modifier = Modifier.width(20.dp))
                                 Column {
                                     Text(
-                                        text = studentInfo.studentName,
+                                        text = student.studentName,
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -309,7 +308,7 @@ fun DashboardContent(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = studentInfo.npm,
+                                        text = student.npm,
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Medium
@@ -320,7 +319,7 @@ fun DashboardContent(
                                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                                     ) {
                                         Text(
-                                            studentInfo.studyProgram,
+                                            student.studyProgram,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
                                     }
@@ -329,7 +328,7 @@ fun DashboardContent(
                         }
                     }
 
-                    if (allCourseInfo.isEmpty()) {
+                    if (allCourse.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f),
@@ -351,7 +350,7 @@ fun DashboardContent(
                         )
                     }
 
-                    items(allCourseInfo) { course ->
+                    items(allCourse) { course ->
                         CourseExpressiveCard(course, allPresenceInfo, onCourseClick, onPresenceClick, onTaskClick)
                     }
                 }
@@ -362,11 +361,11 @@ fun DashboardContent(
 
 @Composable
 fun CourseExpressiveCard(
-    course: CourseInfo,
-    presenceInfo: List<CoursePresence>,
-    onCourseClick: (CourseInfo) -> Unit,
-    onPresenceClick: (CourseInfo) -> Unit,
-    onTaskClick: (CourseInfo) -> Unit
+    course: Course,
+    presenceInfo: List<AttendancesByCourse>,
+    onCourseClick: (Course) -> Unit,
+    onPresenceClick: (Course) -> Unit,
+    onTaskClick: (Course) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -422,7 +421,7 @@ fun CourseExpressiveCard(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            AttendanceGraph(presenceInfo.find { it.courseCode == course.courseCode }?.presences ?: emptyList())
+            AttendanceGraph(presenceInfo.find { it.courseCode == course.courseCode }?.attendances ?: emptyList())
 
             Spacer(modifier = Modifier.height(20.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

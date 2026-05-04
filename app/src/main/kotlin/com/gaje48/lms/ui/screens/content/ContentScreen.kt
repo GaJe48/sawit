@@ -1,4 +1,4 @@
-package com.gaje48.lms.ui.screens
+package com.gaje48.lms.ui.screens.content
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +36,6 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,7 +54,6 @@ import com.gaje48.lms.model.LoadMode
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.ErrorGif
 import com.gaje48.lms.ui.components.LoadingGif
-import com.gaje48.lms.ui.state.LmsViewModel
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -64,13 +62,12 @@ import dev.chrisbanes.haze.rememberHazeState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalHazeMaterialsApi::class)
 @Composable
-fun MeetingDetail(
-    viewModel: LmsViewModel,
-    meetingUrl: String,
+fun ContentScreen(
+    viewModel: ContentViewModel,
     onBackClick: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val allMeetingDetail = uiState.allMeetingContent
+    val allMeetingDetail = uiState.allContent
     val isLoading = uiState.isLoading
     val errorMessage = uiState.errorMessage
     val uriHandler = LocalUriHandler.current
@@ -78,9 +75,7 @@ fun MeetingDetail(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val state = rememberPullToRefreshState()
 
-    LaunchedEffect(Unit) {
-        viewModel.loadMeetingDetail(meetingUrl)
-    }
+    // Initialization handled by ViewModel init block
 
     Box(
         modifier = Modifier
@@ -103,7 +98,7 @@ fun MeetingDetail(
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
             state = state,
-            onRefresh = { viewModel.loadMeetingDetail(meetingUrl, LoadMode.REFRESH) },
+            onRefresh = { viewModel.loadMeetingDetail(LoadMode.REFRESH) },
             contentAlignment = Alignment.TopCenter,
             indicator = {
                 PullToRefreshDefaults.LoadingIndicator(
@@ -169,7 +164,7 @@ fun MeetingDetail(
                                     isLoading -> LoadingGif()
                                     errorMessage != null -> ErrorGif(
                                         message = errorMessage,
-                                        onRetry = { viewModel.loadMeetingDetail(meetingUrl) }
+                                        onRetry = { viewModel.loadMeetingDetail(LoadMode.LOADING) }
                                     )
                                     else -> EmptyGif(label = "Tidak ada file materi yang tersedia")
                                 }
@@ -190,11 +185,11 @@ fun MeetingDetail(
                             }
                             items(files) { item ->
                                 ExpressiveResourceCard(
-                                    title = item.desc,
+                                    title = item.title,
                                     subtitle = "Ketuk untuk mengunduh dokumen",
                                     icon = iconPainter(item.type),
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                                    onClick = { viewModel.downloadFile(item.url) }
+                                    onClick = { viewModel.downloadFile(item.contentUrl) }
                                 )
                             }
                         }
@@ -205,11 +200,11 @@ fun MeetingDetail(
                             }
                             items(links) { item ->
                                 ExpressiveResourceCard(
-                                    title = item.desc,
+                                    title = item.title,
                                     subtitle = "Ketuk untuk membuka tautan",
                                     icon = iconPainter(item.type),
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                                    onClick = { uriHandler.openUri(item.url) }
+                                    onClick = { uriHandler.openUri(item.contentUrl) }
                                 )
                             }
                         }

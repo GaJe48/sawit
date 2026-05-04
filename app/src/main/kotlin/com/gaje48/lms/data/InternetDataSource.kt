@@ -3,17 +3,16 @@ package com.gaje48.lms.data
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.gaje48.lms.model.AccountProblemException
-import com.gaje48.lms.model.CourseInfo
+import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.DashboardData
-import com.gaje48.lms.model.MeetingContent
+import com.gaje48.lms.model.Content
 import com.gaje48.lms.model.SessionExpiredException
 import com.gaje48.lms.model.StatusPresensi
-import com.gaje48.lms.model.CourseMeeting
-import com.gaje48.lms.model.CoursePresence
-import com.gaje48.lms.model.MeetingTask
-import com.gaje48.lms.model.MeetingUrl
-import com.gaje48.lms.model.StudentInfo
-import com.gaje48.lms.model.TaskInfo
+import com.gaje48.lms.model.MeetingsByCourse
+import com.gaje48.lms.model.AttendancesByCourse
+import com.gaje48.lms.model.Assignment
+import com.gaje48.lms.model.Meeting
+import com.gaje48.lms.model.Student
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -132,7 +131,7 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
         DashboardData(studentInfo.await(), courses, presences.await(), meetings)
     }
 
-    private fun parseStudentInfo(dashboardHtml: String): StudentInfo {
+    private fun parseStudentInfo(dashboardHtml: String): Student {
         val dashboardParser = Jsoup.parse(dashboardHtml)
 
         val rawName = dashboardParser.selectFirst("div.pull-left.info p")!!.text()
@@ -140,16 +139,16 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
             .joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
         val npm = dashboardParser.selectFirst("li.user-body strong")!!.text()
 
-        return StudentInfo(
+        return Student(
             studentName = studentName,
             npm = npm,
             studyProgram = dashboardParser.selectFirst("span.Badge-info")!!.text(),
             classCode = dashboardParser.selectFirst("span.pull-right.text-bold.badge")!!.text(),
-            studentPhoto = "https://lms.unindra.ac.id/lms_publik/images/users/thumbs/$npm.png"
+            studentProfilePictureUrl = "https://lms.unindra.ac.id/lms_publik/images/users/thumbs/$npm.png"
         )
     }
 
-    private fun parseAllCourseInfo(dashboardHtml: String): Pair<List<CourseInfo>, List<CourseMeeting>> {
+    private fun parseAllCourseInfo(dashboardHtml: String): Pair<List<Course>, List<MeetingsByCourse>> {
         val dashboardParser = Jsoup.parse(dashboardHtml)
 
         val allMeeting = dashboardParser.select("li.treeview").associate { tree ->
@@ -161,7 +160,7 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
 
                 val meetingNumber = Regex("(\\d+)").find(title)!!.value.toInt()
 
-                MeetingUrl(meetingNumber - 1, url)
+                Meeting(meetingNumber - 1, url)
             }
 
             "$day $time" to meetings
@@ -184,25 +183,25 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
             val (day, clock) = time.replace("Waktu: ", "").split(", ")
 
             val meetingsForCourse = allMeeting["$day $clock"] ?: emptyList()
-            val courseMeeting = CourseMeeting(courseCode, meetingsForCourse)
+            val meetingsByCourse = MeetingsByCourse(courseCode, meetingsForCourse)
 
-            val courseInfo = CourseInfo(
+            val course = Course(
                 courseCode = courseCode,
                 courseName = courseName,
                 day = day,
                 clock = clock,
                 room = room.replace("Ruang: ", ""),
                 lecturerName = lecturerName,
-                lecturerHp = el.selectFirst("h5.widget-user-desc")!!.text()
+                lecturerPhoneNumber = el.selectFirst("h5.widget-user-desc")!!.text()
                     .replace("HP :", "").trim().ifEmpty { "Nomor HP tidak tersedia" },
-                lecturerPhoto = el.selectFirst("img")!!.attr("src")
+                lecturerProfilePictureUrl = el.selectFirst("img")!!.attr("src")
             )
 
-            courseInfo to courseMeeting
+            course to meetingsByCourse
         }.unzip()
     }
 
-    suspend fun getAllPresenceInfo(): List<CoursePresence> = coroutineScope {
+    suspend fun getAllPresenceInfo(): List<AttendancesByCourse> = coroutineScope {
         val presenceHtml = webClient.get("https://lms.unindra.ac.id/presensi").bodyAsText()
         val presenceParser = Jsoup.parse(presenceHtml)
 
@@ -225,19 +224,19 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
 
                 val parser = Jsoup.parse(html)
                 val barisMahasiswa = parser.selectFirst("table.table-bordered tbody tr")
-                    ?: return@async CoursePresence(courseCode, emptyList())
+                    ?: return@async AttendancesByCourse(courseCode, emptyList())
 
                 val cols = barisMahasiswa.select("td")
                 val listStatusHadir = (3..<cols.size - 1).map { i ->
                     cols[i].selectFirst("i.fa-calendar-check-o") != null
                 }
 
-                CoursePresence(courseCode, listStatusHadir)
+                AttendancesByCourse(courseCode, listStatusHadir)
             }
         }.awaitAll()
     }
 
-    suspend fun getAllMeetingContent(meetingUrl: String): List<MeetingContent> {
+    suspend fun getAllMeetingContent(meetingUrl: String): List<Content> {
         val html = webClient.get(meetingUrl).bodyAsText()
         val document = Jsoup.parse(html)
 
@@ -252,25 +251,25 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
             val realLink = if (link.contains("member_url")) webClient.get(link).bodyAsText()
             else link
 
-            MeetingContent(
+            Content(
                 type = div1.selectFirst("a i")!!.className().split(" ")
                     .find { it.startsWith("fa-") }!!,
-                desc = div2.text().trim().substringBeforeLast(".")
+                title = div2.text().trim().substringBeforeLast(".")
                     .ifEmpty { div1.text().trim() },
-                url = realLink
+                contentUrl = realLink
             )
         }
     }
 
     suspend fun getAllPresenceStatus(
-        allMeeting: List<MeetingUrl>,
+        allMeeting: List<Meeting>,
         allPresenceInfo: List<Boolean>
     ): List<StatusPresensi> = coroutineScope {
         allPresenceInfo.mapIndexed { index, isHadir ->
             async {
                 if (isHadir) return@async StatusPresensi.SudahHadir
 
-                val meetUrl = allMeeting.find { it.meetingIndex == index }?.url ?: return@async StatusPresensi.BelumHadirTanpaLink
+                val meetUrl = allMeeting.find { it.meetingNumber == index }?.meetingUrl ?: return@async StatusPresensi.BelumHadirTanpaLink
 
                 val meetHtml = webClient.get(meetUrl).bodyAsText()
                 val link = Jsoup.parse(meetHtml).selectFirst("a[href*=force_download]")
@@ -280,7 +279,7 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
         }.awaitAll()
     }
 
-    suspend fun getAllTask(courseMeetings: List<MeetingUrl>): List<MeetingTask> = coroutineScope {
+    suspend fun getAllTask(courseMeetings: List<Meeting>): List<Assignment> = coroutineScope {
         fun extractFileUrl(container: Element): String? {
             val pdfId = container.selectFirst("a[onclick*=lihat_pdf]")?.attr("onclick")
                 ?.substringAfter("'", "")?.substringBefore("'")
@@ -322,9 +321,15 @@ class InternetDataSource(private val ioDispatcher: CoroutineDispatcher) {
                 val isSubmitted = taskHtml.contains("Sudah Submit")
                 val isExpired = taskHtml.contains("Waktu Submit sudah berakhir")
 
-                MeetingTask(
+                Assignment(
                     meetingIndex,
-                    TaskInfo(taskUrl, message, taskFile, deadline, viewUrl, isSubmitted, isExpired)
+                    taskUrl,
+                    message,
+                    taskFile,
+                    deadline,
+                    viewUrl,
+                    isSubmitted,
+                    isExpired
                 )
             }
         }.awaitAll().filterNotNull()

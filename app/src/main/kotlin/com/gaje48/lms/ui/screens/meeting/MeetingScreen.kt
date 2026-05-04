@@ -1,4 +1,4 @@
-package com.gaje48.lms.ui.screens
+package com.gaje48.lms.ui.screens.meeting
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -50,9 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gaje48.lms.model.CourseInfo
 import com.gaje48.lms.ui.components.EmptyGif
-import com.gaje48.lms.ui.state.LmsViewModel
+import com.gaje48.lms.ui.screens.dashboard.InfoChip
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -61,9 +60,8 @@ import dev.chrisbanes.haze.rememberHazeState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MeetingList(
-    viewModel: LmsViewModel,
-    courseCode: String,
+fun MeetingScreen(
+    viewModel: MeetingViewModel,
     onBackClick: () -> Unit,
     onMeetingClick: (String) -> Unit
 ) {
@@ -71,7 +69,7 @@ fun MeetingList(
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val state = rememberPullToRefreshState()
-    val course = uiState.allCourseInfo.find { it.courseCode == courseCode } ?: return
+    val course = uiState.course ?: return
 
     Box(
         modifier = Modifier
@@ -190,7 +188,7 @@ fun MeetingList(
                                             color = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                         Text(
-                                            text = course.lecturerHp.ifEmpty { "Nomor HP tidak tersedia" },
+                                            text = course.lecturerPhoneNumber.ifEmpty { "Nomor HP tidak tersedia" },
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
                                         )
@@ -204,18 +202,33 @@ fun MeetingList(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     val chipColor = MaterialTheme.colorScheme.onSecondaryContainer
-                                    InfoChip(icon = Icons.Default.CalendarMonth, text = course.day,
-                                        containerColor = chipColor.copy(alpha = 0.1f), contentColor = chipColor, fontWeight = FontWeight.Bold)
-                                    InfoChip(icon = Icons.Default.Timer, text = course.clock,
-                                        containerColor = chipColor.copy(alpha = 0.1f), contentColor = chipColor, fontWeight = FontWeight.Bold)
-                                    InfoChip(icon = Icons.Default.MeetingRoom, text = course.room,
-                                        containerColor = chipColor.copy(alpha = 0.1f), contentColor = chipColor, fontWeight = FontWeight.Bold)
+                                    InfoChip(
+                                        icon = Icons.Default.CalendarMonth,
+                                        text = course.day,
+                                        containerColor = chipColor.copy(alpha = 0.1f),
+                                        contentColor = chipColor,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    InfoChip(
+                                        icon = Icons.Default.Timer,
+                                        text = course.clock,
+                                        containerColor = chipColor.copy(alpha = 0.1f),
+                                        contentColor = chipColor,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    InfoChip(
+                                        icon = Icons.Default.MeetingRoom,
+                                        text = course.room,
+                                        containerColor = chipColor.copy(alpha = 0.1f),
+                                        contentColor = chipColor,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
                     }
 
-                    val allMeeting = uiState.allMeetingInfo.find { it.courseCode == course.courseCode }?.meetings ?: emptyList()
+                    val allMeeting = uiState.allMeeting
                     
                     if (allMeeting.isEmpty()) {
                         item {
@@ -236,8 +249,8 @@ fun MeetingList(
 
                         items(allMeeting) { meeting ->
                             MeetingExpressiveItem(
-                                index = meeting.meetingIndex + 1,
-                                onItemClick = { onMeetingClick(meeting.url) },
+                                index = meeting.meetingNumber + 1,
+                                onItemClick = { onMeetingClick(meeting.meetingUrl) },
                             )
                         }
                     }

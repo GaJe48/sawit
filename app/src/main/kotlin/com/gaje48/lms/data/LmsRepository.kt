@@ -2,17 +2,30 @@ package com.gaje48.lms.data
 
 import android.net.Uri
 import com.gaje48.lms.model.AccountProblemException
-import com.gaje48.lms.model.MeetingUrl
+import com.gaje48.lms.model.DashboardData
+import com.gaje48.lms.model.Meeting
 import com.gaje48.lms.model.SessionExpiredException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class LmsRepository(
     private val internetDataSource: InternetDataSource,
     private val storageDataSource: StorageDataSource,
     private val localDataSource: LocalDataSource
 ) {
+    private val _dashboardData = MutableStateFlow<DashboardData?>(null)
+    val dashboardData = _dashboardData.asStateFlow()
+
+    private val _isLoggedIn = MutableStateFlow(false)
+    val isLoggedIn = _isLoggedIn.asStateFlow()
+
     suspend fun savedCredential() = localDataSource.getCredentials()
 
-    suspend fun clearCredential() = localDataSource.clearCredentials()
+    suspend fun clearCredential() {
+        localDataSource.clearCredentials()
+        _isLoggedIn.value = false
+        _dashboardData.value = null
+    }
 
     private suspend fun <T> withAutoReLogin(block: suspend () -> T): T {
         return try {
@@ -32,22 +45,30 @@ class LmsRepository(
     suspend fun login(nim: String, pwd: String) = runCatching {
         internetDataSource.loginStatus(nim, pwd)
         localDataSource.saveCredentials(nim, pwd)
-        internetDataSource.getDashboardData()
+        val data = internetDataSource.getDashboardData()
+        _dashboardData.value = data
+        _isLoggedIn.value = true
+        data
     }
 
     suspend fun fetchDashboardData() = runCatching {
-        withAutoReLogin { internetDataSource.getDashboardData() }
+        withAutoReLogin {
+            val data = internetDataSource.getDashboardData()
+            _dashboardData.value = data
+            _isLoggedIn.value = true
+            data
+        }
     }
 
     suspend fun fetchMeetingDetail(meetingUrl: String) = runCatching {
         withAutoReLogin { internetDataSource.getAllMeetingContent(meetingUrl) }
     }
 
-    suspend fun fetchPresenceDetail(allMeeting: List<MeetingUrl>, allPresenceInfo: List<Boolean>) = runCatching {
+    suspend fun fetchPresenceDetail(allMeeting: List<Meeting>, allPresenceInfo: List<Boolean>) = runCatching {
         withAutoReLogin { internetDataSource.getAllPresenceStatus(allMeeting, allPresenceInfo) }
     }
 
-    suspend fun fetchTasks(courseMeetings: List<MeetingUrl>) = runCatching {
+    suspend fun fetchTasks(courseMeetings: List<Meeting>) = runCatching {
         withAutoReLogin { internetDataSource.getAllTask(courseMeetings) }
     }
 

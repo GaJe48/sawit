@@ -6,11 +6,17 @@ import com.gaje48.lms.data.LocalDataSource
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.data.StorageDataSource
 import com.gaje48.lms.data.db.LmsDatabase
-import com.gaje48.lms.ui.state.LmsViewModel
+import com.gaje48.lms.ui.screens.dashboard.DashboardViewModel
+import com.gaje48.lms.ui.screens.login.LoginViewModel
+import com.gaje48.lms.ui.screens.content.ContentViewModel
+import com.gaje48.lms.ui.screens.meeting.MeetingViewModel
+import com.gaje48.lms.ui.screens.attendance.AttendanceViewModel
+import com.gaje48.lms.ui.screens.assignment.AssignmentViewModel
 import com.gaje48.lms.util.NotificationHelper
 import kotlinx.coroutines.Dispatchers
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
+import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
 val module = module {
@@ -45,5 +51,10 @@ val module = module {
 //            attendanceDao = get()
         )
     }
-    viewModel { LmsViewModel(get(), get()) }
+    viewModelOf(::LoginViewModel)
+    viewModelOf(::DashboardViewModel)
+    viewModelOf(::MeetingViewModel)
+    viewModelOf(::ContentViewModel)
+    viewModelOf(::AssignmentViewModel)
+    viewModelOf(::AttendanceViewModel)
 }
