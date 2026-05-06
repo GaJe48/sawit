@@ -50,7 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gaje48.lms.R
-import com.gaje48.lms.model.LoadMode
+import com.gaje48.lms.model.UpdateAction
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.ErrorGif
 import com.gaje48.lms.ui.components.LoadingGif
@@ -60,22 +60,26 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalHazeMaterialsApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalHazeMaterialsApi::class
+)
 @Composable
 fun ContentScreen(
     viewModel: ContentViewModel,
     onBackClick: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val allMeetingDetail = uiState.allContent
+
+    val contents = uiState.contents
     val isLoading = uiState.isLoading
     val errorMessage = uiState.errorMessage
+
     val uriHandler = LocalUriHandler.current
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val state = rememberPullToRefreshState()
-
-    // Initialization handled by ViewModel init block
 
     Box(
         modifier = Modifier
@@ -98,7 +102,7 @@ fun ContentScreen(
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
             state = state,
-            onRefresh = { viewModel.loadMeetingDetail(LoadMode.REFRESH) },
+            onRefresh = { viewModel.fetchContents(UpdateAction.REFRESH) },
             contentAlignment = Alignment.TopCenter,
             indicator = {
                 PullToRefreshDefaults.LoadingIndicator(
@@ -154,7 +158,7 @@ fun ContentScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    if (allMeetingDetail.isEmpty()) {
+                    if (contents.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxSize(),
@@ -164,7 +168,7 @@ fun ContentScreen(
                                     isLoading -> LoadingGif()
                                     errorMessage != null -> ErrorGif(
                                         message = errorMessage,
-                                        onRetry = { viewModel.loadMeetingDetail(LoadMode.LOADING) }
+                                        onRetry = { viewModel.fetchContents() }
                                     )
                                     else -> EmptyGif(label = "Tidak ada file materi yang tersedia")
                                 }
@@ -173,7 +177,7 @@ fun ContentScreen(
                     } else {
                         val fileKeywords = listOf("pdf", "word", "powerpoint", "excel", "archive")
 
-                        val (files, links) = allMeetingDetail.partition { item ->
+                        val (files, links) = contents.partition { item ->
                             fileKeywords.any { keyword ->
                                 item.type.contains(keyword, ignoreCase = true)
                             }
@@ -184,9 +188,9 @@ fun ContentScreen(
                                 SectionHeader(icon = Icons.Default.Description, label = "File Materi")
                             }
                             items(files) { item ->
-                                ExpressiveResourceCard(
+                                ContentCard(
                                     title = item.title,
-                                    subtitle = "Ketuk untuk mengunduh dokumen",
+                                    description = "Ketuk untuk mengunduh dokumen",
                                     icon = iconPainter(item.type),
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                                     onClick = { viewModel.downloadFile(item.contentUrl) }
@@ -199,9 +203,9 @@ fun ContentScreen(
                                 SectionHeader(icon = Icons.Default.Link, label = "Tautan Lainnya")
                             }
                             items(links) { item ->
-                                ExpressiveResourceCard(
+                                ContentCard(
                                     title = item.title,
-                                    subtitle = "Ketuk untuk membuka tautan",
+                                    description = "Ketuk untuk membuka tautan",
                                     icon = iconPainter(item.type),
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                                     onClick = { uriHandler.openUri(item.contentUrl) }
@@ -240,9 +244,9 @@ fun SectionHeader(icon: ImageVector, label: String) {
 }
 
 @Composable
-fun ExpressiveResourceCard(
+fun ContentCard(
     title: String,
-    subtitle: String,
+    description: String,
     icon: Painter,
     containerColor: Color,
     onClick: () -> Unit
@@ -277,7 +281,7 @@ fun ExpressiveResourceCard(
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
-                    subtitle,
+                    description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -290,7 +294,7 @@ fun ExpressiveResourceCard(
 private fun iconPainter(type: String): Painter {
     return when {
         type.contains("pdf") -> painterResource(id = R.drawable.pdf)
-        type.contains("powerpoint") -> painterResource(id = R.drawable.powerpoint)
+        type.contains("powerpoint") -> painterResource(id = R.drawable.ppt)
         type.contains("picture") -> painterResource(id = R.drawable.image)
         type.contains("video") -> painterResource(id = R.drawable.video)
         else -> painterResource(id = R.drawable.link)

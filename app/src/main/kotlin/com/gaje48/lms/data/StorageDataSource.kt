@@ -6,11 +6,12 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import com.gaje48.lms.model.FileSource
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
-import io.ktor.client.statement.request
 import io.ktor.http.contentLength
+import io.ktor.http.contentType
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,14 +21,19 @@ class StorageDataSource(context: Context) {
 
     suspend fun saveToDownloads(
         response: HttpResponse,
-        onProgress: (fileName: String, progress: Float) -> Unit
+        fileName: String,
+        onProgress: (fullFileName: String, progress: Float) -> Unit
     ): Unit = withContext(Dispatchers.IO) {
-        val fileName = response.request.url.segments.last()
+
+        val mime = response.contentType()?.toString() ?: error("error mime")
+        val fileExt = MimeTypeMap.getSingleton().getExtensionFromMimeType(mime) ?: error("error mime 2")
+        val fullFileName = "$fileName.$fileExt"
+
         val totalBytes = response.contentLength() ?: -1L
         val channel = response.bodyAsChannel()
 
         val contentValues = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+            put(MediaStore.Downloads.DISPLAY_NAME, fullFileName)
             put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/elemes")
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
@@ -46,7 +52,7 @@ class StorageDataSource(context: Context) {
                     output.write(buffer, 0, read)
                     downloaded += read
                     if (totalBytes > 0) {
-                        onProgress(fileName, downloaded.toFloat() / totalBytes)
+                        onProgress(fullFileName, downloaded.toFloat() / totalBytes)
                     }
                 }
             } ?: error("Gagal menulis file")
@@ -54,6 +60,8 @@ class StorageDataSource(context: Context) {
             contentValues.clear()
             contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
             resolver.update(uri, contentValues, null, null)
+
+            onProgress(fullFileName, 1f)
         }
         .onFailure { e ->
             resolver.delete(uri, null, null)
@@ -61,7 +69,7 @@ class StorageDataSource(context: Context) {
         }
     }
 
-    suspend fun openFileStream(uri: Uri): FileSource = withContext(Dispatchers.IO) {
+    suspend fun openFileStream(uri: Uri) = withContext(Dispatchers.IO) {
         val cursor = resolver.query(
             uri,
             arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),

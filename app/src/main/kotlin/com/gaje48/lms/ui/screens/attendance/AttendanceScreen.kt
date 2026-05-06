@@ -1,21 +1,42 @@
 package com.gaje48.lms.ui.screens.attendance
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -27,11 +48,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.gaje48.lms.model.LoadMode
-import com.gaje48.lms.model.StatusPresensi
+import com.gaje48.lms.model.AttendanceScreenData
+import com.gaje48.lms.model.UpdateAction
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.ErrorGif
 import com.gaje48.lms.ui.components.LoadingGif
@@ -41,54 +63,76 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 
+@Preview
+@Composable
+fun PreviewAttendanceScreen() {
+    AttendanceScreenStateless(
+        courseName = "Pemrograman Visual Lanjut",
+        attendanceScreenDatas = listOf(
+            AttendanceScreenData(true, "https://example.com"),
+            AttendanceScreenData(false, "https://example.com"),
+            AttendanceScreenData(false, null)
+        ),
+        isProcessingAttendance = false,
+        isLoading = false,
+        isRefreshing = false,
+        errorMessage = null,
+        onRefresh = {},
+        onRetry = {},
+        onAttendClick = {},
+        onBackClick = {},
+    )
+}
+
 @Composable
 fun AttendanceScreen(
     viewModel: AttendanceViewModel,
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val courseName = uiState.courseName ?: return
 
-    LayarRekapAbsenStateless(
-        courseName = courseName,
-        allPresenceDetail = uiState.allPresenceStatus,
-        errorMessage = uiState.errorMessage,
+    AttendanceScreenStateless(
+        courseName = uiState.courseName ?: return,
+        attendanceScreenDatas = uiState.attendanceScreenDatas,
+        isProcessingAttendance = uiState.isProcessingAttendance,
         isLoading = uiState.isLoading,
-        isPresenceSubmitting = uiState.isPresenceSubmitting,
         isRefreshing = uiState.isRefreshing,
-        onRefresh = { viewModel.getAttendances(LoadMode.REFRESH) },
-        onRetry = { viewModel.getAttendances(LoadMode.LOADING) },
-        onAbsenClick = { viewModel.submitPresence(it) },
+        errorMessage = uiState.errorMessage,
+        onRefresh = { viewModel.getAttendances(UpdateAction.REFRESH) },
+        onRetry = { viewModel.getAttendances() },
+        onAttendClick = { viewModel.processAttendance(it) },
         onBackClick = onBackClick
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalHazeMaterialsApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalHazeMaterialsApi::class
+)
 @Composable
-fun LayarRekapAbsenStateless(
+fun AttendanceScreenStateless(
     courseName: String,
-    allPresenceDetail: List<StatusPresensi>,
-    errorMessage: String?,
+    attendanceScreenDatas: List<AttendanceScreenData>,
+    isProcessingAttendance: Boolean,
     isLoading: Boolean,
-    isPresenceSubmitting: Boolean,
     isRefreshing: Boolean,
+    errorMessage: String?,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
-    onAbsenClick: (String) -> Unit,
+    onAttendClick: (String) -> Unit,
     onBackClick: () -> Unit
 ) {
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val state = rememberPullToRefreshState()
+    val pullToRefreshState = rememberPullToRefreshState()
 
-    if (isPresenceSubmitting) {
+    if (isProcessingAttendance) {
         AlertDialog(
             onDismissRequest = {},
             confirmButton = {},
             text = {
-                Row(
-                    horizontalArrangement = Arrangement.Center
-                ) {
+                Row(horizontalArrangement = Arrangement.Center) {
                     LoadingGif(label = "Sedang proses absen...")
                 }
             }
@@ -115,12 +159,12 @@ fun LayarRekapAbsenStateless(
 
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            state = state,
+            state = pullToRefreshState,
             onRefresh = onRefresh,
             contentAlignment = Alignment.TopCenter,
             indicator = {
                 PullToRefreshDefaults.LoadingIndicator(
-                    state = state,
+                    state = pullToRefreshState,
                     isRefreshing = isRefreshing,
                     modifier = Modifier.padding(top = 16.dp)
                 )
@@ -167,7 +211,7 @@ fun LayarRekapAbsenStateless(
                     )
                 }
             ) { paddingValues ->
-                if (allPresenceDetail.isEmpty()) {
+                if (attendanceScreenDatas.isEmpty()) {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -232,13 +276,13 @@ fun LayarRekapAbsenStateless(
                                             color = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                         Text(
-                                            "${allPresenceDetail.count { it is StatusPresensi.SudahHadir }} dari ${allPresenceDetail.size} Pertemuan",
+                                            "${attendanceScreenDatas.count { it.isAttended }} dari ${attendanceScreenDatas.size} Pertemuan",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
                                         )
                                     }
                                     Text(
-                                        text = "${(allPresenceDetail.count { it is StatusPresensi.SudahHadir } * 100 / allPresenceDetail.size)}%",
+                                        text = "${(attendanceScreenDatas.count { it.isAttended } * 100 / attendanceScreenDatas.size)}%",
                                         style = MaterialTheme.typography.displaySmall,
                                         fontWeight = FontWeight.Black,
                                         color = MaterialTheme.colorScheme.primary,
@@ -298,16 +342,12 @@ fun LayarRekapAbsenStateless(
                             )
                         }
 
-                        itemsIndexed(allPresenceDetail) { index, status ->
-                            KotakPertemuanExpressive(
-                                pertemuanKe = index + 1,
-                                status = status,
-                                isActionEnabled = !isPresenceSubmitting,
-                                onAbsenClick = {
-                                    // Pengecekan aman (Smart Cast)
-                                    if (status is StatusPresensi.BelumHadirAdaLink) {
-                                        onAbsenClick(status.linkDownload)
-                                    }
+                        itemsIndexed(attendanceScreenDatas) { index, attendanceScreenData ->
+                            AttendanceCard(
+                                attendanceIndex = index + 1,
+                                attendanceScreenData = attendanceScreenData,
+                                onAttendClick = {
+                                    attendanceScreenData.contentUrl?.let { onAttendClick(it) }
                                 }
                             )
                         }
@@ -319,19 +359,18 @@ fun LayarRekapAbsenStateless(
 }
 
 @Composable
-fun KotakPertemuanExpressive(
-    pertemuanKe: Int,
-    status: StatusPresensi,
-    isActionEnabled: Boolean,
-    onAbsenClick: () -> Unit
+fun AttendanceCard(
+    attendanceIndex: Int,
+    attendanceScreenData: AttendanceScreenData,
+    onAttendClick: () -> Unit
 ) {
-    val containerColor = if (status is StatusPresensi.SudahHadir)
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-    else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+    val containerColor =
+        if (attendanceScreenData.isAttended) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
 
-    val contentColor = if (status is StatusPresensi.SudahHadir)
-        MaterialTheme.colorScheme.primary
-    else MaterialTheme.colorScheme.error
+    val contentColor =
+        if (attendanceScreenData.isAttended) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.error
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -358,8 +397,9 @@ fun KotakPertemuanExpressive(
                     letterSpacing = 2.sp
                 )
 
-                Icon(
-                    imageVector = if (status is StatusPresensi.SudahHadir) Icons.Default.CheckCircle else Icons.Default.Warning,
+                Icon(imageVector =
+                        if (attendanceScreenData.isAttended) Icons.Default.CheckCircle
+                        else Icons.Default.Warning,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
                     tint = contentColor
@@ -367,74 +407,55 @@ fun KotakPertemuanExpressive(
             }
 
             Text(
-                text = "%02d".format(pertemuanKe),
+                text = "%02d".format(attendanceIndex),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Black,
                 color = contentColor
             )
 
-            when (status) {
-                is StatusPresensi.SudahHadir -> {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(36.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            "Telah Hadir",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+            if (attendanceScreenData.isAttended) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        "Telah Hadir",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
-                is StatusPresensi.BelumHadirAdaLink -> {
-                    Button(
-                        onClick = onAbsenClick,
-                        enabled = isActionEnabled,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError
-                        ),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                        modifier = Modifier.fillMaxWidth().height(36.dp)
-                    ) {
-                        Text("Isi Absen", fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    }
+            } else if (attendanceScreenData.contentUrl != null) {
+                Button(
+                    onClick = onAttendClick,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().height(36.dp)
+                ) {
+                    Text(
+                        "Isi Absen",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
                 }
-                is StatusPresensi.BelumHadirTanpaLink -> {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(36.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            "Tidak Ada Link Absen",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        "Tidak Ada Link Absen",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
-    }
-}
-
-@Preview
-@Composable
-fun PreviewLayarRekapAbsen() {
-    MaterialTheme {
-        LayarRekapAbsenStateless(
-            courseName = "Pemrograman Visual Lanjut",
-            allPresenceDetail = listOf(StatusPresensi.SudahHadir, StatusPresensi.BelumHadirTanpaLink, StatusPresensi.BelumHadirAdaLink("")),
-            errorMessage = "",
-            isLoading = false,
-            isPresenceSubmitting = false,
-            isRefreshing = false,
-            onRefresh = {},
-            onRetry = {},
-            onAbsenClick = {},
-            onBackClick = {},
-        )
     }
 }

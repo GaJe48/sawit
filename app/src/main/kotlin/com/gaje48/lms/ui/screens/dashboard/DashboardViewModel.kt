@@ -18,30 +18,30 @@ import kotlinx.coroutines.launch
 data class DashboardUiState(
     val student: Student? = null,
     val allCourse: List<Course> = emptyList(),
-    val allPresenceInfo: List<AttendancesByCourse> = emptyList(),
+    val allPresences: List<AttendancesByCourse> = emptyList(),
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null
 )
 
-class DashboardViewModel(
-    private val lmsRepository: LmsRepository
-) : ViewModel() {
-
-    private val _isRefreshing = MutableStateFlow(false)
-    private val _errorMessage = MutableStateFlow<String?>(null)
+class DashboardViewModel(private val lmsRepository: LmsRepository) : ViewModel() {
 
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    private val _errorMessage = MutableStateFlow<String?>(null)
+
     val uiState: StateFlow<DashboardUiState> = combine(
-        lmsRepository.dashboardData,
+        lmsRepository.student,
+        lmsRepository.courses,
+        lmsRepository.allAttendances,
         _isRefreshing,
         _errorMessage
-    ) { dashboardData, isRefreshing, errorMessage ->
+    ) { student, courses, attendances, isRefreshing, errorMessage ->
         DashboardUiState(
-            student = dashboardData?.student,
-            allCourse = dashboardData?.courses ?: emptyList(),
-            allPresenceInfo = dashboardData?.allPresences ?: emptyList(),
+            student = student,
+            allCourse = courses,
+            allPresences = attendances,
             isRefreshing = isRefreshing,
             errorMessage = errorMessage
         )
@@ -51,23 +51,15 @@ class DashboardViewModel(
         initialValue = DashboardUiState()
     )
 
-    private fun setError(message: String) {
-        _errorMessage.value = message
-    }
-
-    private fun emitSnackbar(message: String) {
-        _snackbarEvent.trySend(message)
-    }
-
     fun refreshDashboard() {
         viewModelScope.launch {
             _isRefreshing.value = true
             _errorMessage.value = null
 
-            lmsRepository.fetchDashboardData().onFailure { e ->
+            lmsRepository.syncAll().onFailure { e ->
                 e.message?.let {
-                    if (uiState.value.allCourse.isEmpty()) setError(it)
-                    else emitSnackbar(it)
+                    if (uiState.value.allCourse.isEmpty()) _errorMessage.value = it
+                    else _snackbarEvent.trySend(it)
                 }
             }
 

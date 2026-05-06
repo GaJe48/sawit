@@ -112,9 +112,9 @@ fun LmsApp(loginViewModel: LoginViewModel) {
                     }
                     DashboardScreen(
                         viewModel = viewModel,
-                        onCourseClick = { backStack.add(MeetingNavKey(it.courseCode)) },
-                        onPresenceClick = { backStack.add(AttendanceNavKey(it.courseCode)) },
-                        onTaskClick = { backStack.add(AssignmentNavKey(it.courseCode)) },
+                        onCourseClick = { courseCode -> backStack.add(MeetingNavKey(courseCode)) },
+                        onAttendanceClick = { courseCode -> backStack.add(AttendanceNavKey(courseCode)) },
+                        onAssignmentClick = { courseCode -> backStack.add(AssignmentNavKey(courseCode)) },
                     )
                 }
 
@@ -123,9 +123,7 @@ fun LmsApp(loginViewModel: LoginViewModel) {
                     MeetingScreen(
                         viewModel = viewModel,
                         onBackClick = { backStack.removeAt(backStack.lastIndex) },
-                        onMeetingClick = { meetingUrl ->
-                            backStack.add(ContentNavKey(meetingUrl))
-                        }
+                        onMeetingClick = { meetingUrl -> backStack.add(ContentNavKey(meetingUrl)) }
                     )
                 }
 

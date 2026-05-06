@@ -34,16 +34,12 @@ class LoginViewModel(
                 return@launch
             }
 
-            _uiState.update { it.copy(isSplashReady = true, isAutoLoginLoading = true) }
             val (username, password) = credentials
-            
-            lmsRepository.login(username, password)
-                .onSuccess {
-                    _uiState.update { it.copy(errorMessage = null) }
-                }
-                .onFailure { e ->
-                    e.message?.let { setError(it) }
-                }
+            lmsRepository.checkLoginStatus(username, password)
+                .onSuccess { _uiState.update { it.copy(errorMessage = null) } }
+                .onFailure { e -> e.message?.let { setError(it) } }
+
+            _uiState.update { it.copy(isSplashReady = true) }
         }
     }
 
@@ -51,12 +47,8 @@ class LoginViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             lmsRepository.login(nim, pwd)
-                .onSuccess {
-                    _uiState.update { it.copy(isLoading = false, errorMessage = null) }
-                }
-                .onFailure { e ->
-                    e.message?.let { setError(it) }
-                }
+                .onSuccess { _uiState.update { it.copy(isLoading = false, errorMessage = null) } }
+                .onFailure { e -> e.message?.let { setError(it) } }
         }
     }
 }

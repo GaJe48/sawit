@@ -12,9 +12,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class MeetingListUiState(
+data class MeetingUiState(
     val course: Course? = null,
-    val allMeeting: List<Meeting> = emptyList(),
+    val meetings: List<Meeting> = emptyList(),
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null
 )
@@ -27,30 +27,32 @@ class MeetingViewModel(
     private val _isRefreshing = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<MeetingListUiState> = combine(
-        lmsRepository.dashboardData,
+    val uiState: StateFlow<MeetingUiState> = combine(
+        lmsRepository.courses,
+        lmsRepository.observeMeetings(courseCode),
         _isRefreshing,
         _errorMessage
-    ) { dashboardData, isRefreshing, errorMessage ->
-        MeetingListUiState(
-            course = dashboardData?.courses?.find { it.courseCode == courseCode },
-            allMeeting = dashboardData?.allMeetings?.find { it.courseCode == courseCode }?.meetings ?: emptyList(),
+    ) { courses, meetings, isRefreshing, errorMessage ->
+        MeetingUiState(
+            course = courses.find { it.courseCode == courseCode },
+            meetings = meetings,
             isRefreshing = isRefreshing,
             errorMessage = errorMessage
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = MeetingListUiState()
+        initialValue = MeetingUiState()
     )
 
     fun refreshDashboard() {
         viewModelScope.launch {
             _isRefreshing.value = true
             _errorMessage.value = null
-            lmsRepository.fetchDashboardData().onFailure { e ->
+
+            lmsRepository.syncAll().onFailure { e ->
                 e.message?.let {
-                    if (uiState.value.allMeeting.isEmpty()) _errorMessage.value = it
+                    if (uiState.value.meetings.isEmpty()) _errorMessage.value = it
                     else _errorMessage.value = it
                 }
             }

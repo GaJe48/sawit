@@ -80,7 +80,7 @@ import kotlin.math.roundToInt
 
 @Preview
 @Composable
-fun PreviewDashboard() {
+fun PreviewDashboardScreen() {
     val dummyProfile = Student(
         studentName = "Abi Musa Abdurrahman",
         npm = "202443500660",
@@ -102,54 +102,56 @@ fun PreviewDashboard() {
 
     val dummyList = listOf(dummyCourse, dummyCourse, dummyCourse, dummyCourse, dummyCourse)
 
-    MaterialTheme {
-        DashboardContent(
-            student = dummyProfile,
-            allCourse = dummyList,
-            allPresenceInfo = emptyList(),
-            isRefreshing = false,
-            onRefresh = {},
-            onCourseClick = {},
-            onPresenceClick = {},
-            onTaskClick = {},
-            onLogout = {},
-        )
-    }
+    DashboardScreenStateless(
+        student = dummyProfile,
+        courses = dummyList,
+        allAttendances = emptyList(),
+        isRefreshing = false,
+        onRefresh = {},
+        onCourseClick = {},
+        onAttendanceClick = {},
+        onAssignmentClick = {},
+        onLogout = {},
+    )
 }
 
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
-    onCourseClick: (Course) -> Unit,
-    onPresenceClick: (Course) -> Unit,
-    onTaskClick: (Course) -> Unit
+    onCourseClick: (String) -> Unit,
+    onAttendanceClick: (String) -> Unit,
+    onAssignmentClick: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    DashboardContent(
+    DashboardScreenStateless(
         student = uiState.student ?: return,
-        allCourse = uiState.allCourse,
-        allPresenceInfo = uiState.allPresenceInfo,
+        courses = uiState.allCourse,
+        allAttendances = uiState.allPresences,
         isRefreshing = uiState.isRefreshing,
         onRefresh = { viewModel.refreshDashboard() },
         onCourseClick = onCourseClick,
-        onPresenceClick = onPresenceClick,
-        onTaskClick = onTaskClick,
+        onAttendanceClick = onAttendanceClick,
+        onAssignmentClick = onAssignmentClick,
         onLogout = { viewModel.logout() },
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalHazeMaterialsApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalHazeMaterialsApi::class
+)
 @Composable
-fun DashboardContent(
+fun DashboardScreenStateless(
     student: Student,
-    allCourse: List<Course>,
-    allPresenceInfo: List<AttendancesByCourse>,
+    courses: List<Course>,
+    allAttendances: List<AttendancesByCourse>,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
-    onCourseClick: (Course) -> Unit,
-    onPresenceClick: (Course) -> Unit,
-    onTaskClick: (Course) -> Unit,
+    onCourseClick: (String) -> Unit,
+    onAttendanceClick: (String) -> Unit,
+    onAssignmentClick: (String) -> Unit,
     onLogout: () -> Unit,
 ) {
     val hazeState = rememberHazeState()
@@ -172,14 +174,10 @@ fun DashboardContent(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     )
-                ) {
-                    Text("Logout")
-                }
+                ) { Text("Logout") }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Batal")
-                }
+                TextButton(onClick = { showLogoutDialog = false }) { Text("Batal") }
             }
         )
     }
@@ -232,7 +230,7 @@ fun DashboardContent(
                         title = {
                             Column {
                                 Text(
-                                    text = "Halo, ${student.studentName.split(" ")[0]}",
+                                    text = "Halo, ${student.studentName.substringBefore(" ")}",
                                     style = MaterialTheme.typography.headlineMedium,
                                     fontWeight = FontWeight.ExtraBold
                                 )
@@ -328,7 +326,7 @@ fun DashboardContent(
                         }
                     }
 
-                    if (allCourse.isEmpty()) {
+                    if (courses.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f),
@@ -350,8 +348,14 @@ fun DashboardContent(
                         )
                     }
 
-                    items(allCourse) { course ->
-                        CourseExpressiveCard(course, allPresenceInfo, onCourseClick, onPresenceClick, onTaskClick)
+                    items(courses.zip(allAttendances)) { (course, attendancesByCourse) ->
+                        CourseCard(
+                            course,
+                            attendancesByCourse,
+                            onCourseClick,
+                            onAttendanceClick,
+                            onAssignmentClick
+                        )
                     }
                 }
             }
@@ -360,16 +364,16 @@ fun DashboardContent(
 }
 
 @Composable
-fun CourseExpressiveCard(
+fun CourseCard(
     course: Course,
-    presenceInfo: List<AttendancesByCourse>,
-    onCourseClick: (Course) -> Unit,
-    onPresenceClick: (Course) -> Unit,
-    onTaskClick: (Course) -> Unit
+    attendancesByCourse: AttendancesByCourse,
+    onCourseClick: (String) -> Unit,
+    onAttendanceClick: (String) -> Unit,
+    onAssignmentClick: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        onClick = { onCourseClick(course) },
+        onClick = { onCourseClick(course.courseCode) },
         shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -421,7 +425,7 @@ fun CourseExpressiveCard(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            AttendanceGraph(presenceInfo.find { it.courseCode == course.courseCode }?.attendances ?: emptyList())
+            AttendanceGraph(attendancesByCourse.attendances)
 
             Spacer(modifier = Modifier.height(20.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -449,7 +453,7 @@ fun CourseExpressiveCard(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SuggestionChip(
-                        onClick = { onPresenceClick(course) },
+                        onClick = { onAttendanceClick(course.courseCode) },
                         label = { Text("Absen", fontSize = 12.sp) },
                         shape = RoundedCornerShape(12.dp),
                         border = null,
@@ -458,7 +462,7 @@ fun CourseExpressiveCard(
                         )
                     )
                     SuggestionChip(
-                        onClick = { onTaskClick(course) },
+                        onClick = { onAssignmentClick(course.courseCode) },
                         label = { Text("Tugas", fontSize = 12.sp) },
                         shape = RoundedCornerShape(12.dp),
                         border = null,
@@ -504,21 +508,18 @@ fun InfoChip(
 }
 
 @Composable
-fun AttendanceGraph(presenceInfo: List<Boolean>) {
-    val totalMeetings = 16
+fun AttendanceGraph(attendances: List<Boolean>) {
+    val attendedCount = attendances.count { it }
 
-    val jumlahPertemuan = presenceInfo.size
-    val attendedCount = presenceInfo.count { it }
+    val percentage =
+        if (attendances.isNotEmpty()) ((attendedCount.toDouble() / attendances.size) * 100).roundToInt()
+        else 0
 
-    val percentage = if (jumlahPertemuan > 0)
-            ((attendedCount.toDouble() / jumlahPertemuan) * 100).roundToInt()
-    else 0
-
-    val upcomingCount = maxOf(0, totalMeetings - jumlahPertemuan)
+    val upcomingCount = maxOf(0, 16 - attendances.size)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "Kehadiran $percentage% ($attendedCount/$jumlahPertemuan)",
+            text = "Kehadiran $percentage% ($attendedCount/${attendances.size})",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Bold
@@ -530,7 +531,7 @@ fun AttendanceGraph(presenceInfo: List<Boolean>) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            presenceInfo.forEach { isPresent ->
+            attendances.forEach { isPresent ->
                 val boxColor = if (isPresent) Color(0xFF4CAF50) else Color(0xFFF44336)
 
                 Box(

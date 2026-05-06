@@ -4,21 +4,22 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.LmsRepository
-import com.gaje48.lms.model.LoadMode
-import com.gaje48.lms.model.Assignment
+import com.gaje48.lms.model.UpdateAction
+import com.gaje48.lms.model.AssignmentScreenData
 import com.gaje48.lms.util.NotificationHelper
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class AssignmentUiState(
     val courseName: String? = null,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
-    val assignments: List<Assignment> = emptyList(),
+    val assignmentScreenDatas: List<AssignmentScreenData> = emptyList(),
     val errorMessage: String? = null,
 )
 
@@ -28,47 +29,55 @@ class AssignmentViewModel(
     private val notificationHelper: NotificationHelper
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AssignmentUiState())
-    val uiState = _uiState.asStateFlow()
-
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
-    init { fetchAssignments() }
+    private val _isLoading = MutableStateFlow(false)
+    private val _isRefreshing = MutableStateFlow(false)
+    private val _errorMessage = MutableStateFlow<String?>(null)
 
-    private fun setError(message: String) {
-        _uiState.update { it.copy(errorMessage = message) }
-    }
+    val uiState = combine(
+        lmsRepository.courses,
+        lmsRepository.observeAssignmentScreenDatas(courseCode),
+        _isLoading,
+        _isRefreshing,
+        _errorMessage
+    ) { courses, assignmentScreenDatas, isLoading, isRefreshing, errorMessage ->
+        AssignmentUiState(
+            courseName = courses.find { it.courseCode == courseCode }?.courseName,
+            assignmentScreenDatas = assignmentScreenDatas,
+            isLoading = isLoading,
+            isRefreshing = isRefreshing,
+            errorMessage = errorMessage
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = AssignmentUiState()
+    )
 
-    private fun emitSnackbar(message: String) {
-        _snackbarEvent.trySend(message)
-    }
-
-    fun fetchAssignments(loadMode: LoadMode = LoadMode.LOADING) {
-        val dashboardData = lmsRepository.dashboardData.value ?: return
-        val allMeeting = dashboardData.allMeetings.find { it.courseCode == courseCode }?.meetings ?: emptyList()
-        val courseName = dashboardData.courses.find { it.courseCode == courseCode }?.courseName
-
+    fun fetchAssignments(updateAction: UpdateAction = UpdateAction.LOADING) {
         viewModelScope.launch {
-            when (loadMode) {
-                LoadMode.REFRESH -> _uiState.update { it.copy(isRefreshing = true, errorMessage = null, courseName = courseName) }
-                LoadMode.LOADING -> _uiState.update {
-                    it.copy(isLoading = true, errorMessage = null, assignments = emptyList(), courseName = courseName)
+            when (updateAction) {
+                UpdateAction.REFRESH -> {
+                    _isRefreshing.value = true
+                    _errorMessage.value = null
+                }
+                UpdateAction.LOADING -> {
+                    _isLoading.value = true
+                    _errorMessage.value = null
                 }
             }
 
-            lmsRepository.fetchTasks(allMeeting)
-                .onSuccess { tasks -> 
-                    _uiState.update { it.copy(assignments = tasks) }
+            lmsRepository.syncAll().onFailure { e ->
+                e.message?.let {
+                    if (uiState.value.assignmentScreenDatas.isEmpty()) _errorMessage.value = it
+                    else _snackbarEvent.trySend(it)
                 }
-                .onFailure { e ->
-                    e.message?.let {
-                        if (_uiState.value.assignments.isEmpty()) setError(it)
-                        else emitSnackbar(it)
-                    }
-                }
+            }
 
-            _uiState.update { it.copy(isRefreshing = false, isLoading = false) }
+            _isRefreshing.value = false
+            _isLoading.value = false
         }
     }
 
@@ -79,18 +88,21 @@ class AssignmentViewModel(
         viewModelScope.launch {
             notificationHelper.showUploadStarted(notifId)
 
-            lmsRepository.uploadTask(uri, taskUrl) { fileName, progress ->
+            val uploadStatus = lmsRepository.uploadTask(uri, taskUrl) { fileName, progress ->
                 currentFileName = fileName
                 notificationHelper.showUploadProgress(notifId, fileName, progress)
-            }
-            .onSuccess {
-                notificationHelper.showUploadSuccess(notifId, currentFileName)
             }
             .onFailure { e ->
                 e.message?.let {
                     notificationHelper.showUploadFailure(notifId, it)
-                    emitSnackbar(it)
+                    _snackbarEvent.trySend(it)
                 }
+            }
+
+            if (uploadStatus.isSuccess) {
+                lmsRepository.syncAll()
+                    .onSuccess { notificationHelper.showUploadSuccess(notifId, currentFileName) }
+                    .onFailure { e -> e.message?.let { _snackbarEvent.trySend(it) } }
             }
         }
     }
@@ -112,7 +124,7 @@ class AssignmentViewModel(
             .onFailure { e ->
                 e.message?.let {
                     notificationHelper.showDownloadFailure(notifId, it)
-                    emitSnackbar(it)
+                    _snackbarEvent.trySend(it)
                 }
             }
         }

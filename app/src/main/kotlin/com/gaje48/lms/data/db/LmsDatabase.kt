@@ -19,7 +19,7 @@ abstract class LmsDatabase : RoomDatabase() {
     abstract fun studentDao(): StudentDao
     abstract fun courseDao(): CourseDao
     abstract fun meetingDao(): MeetingDao
-    abstract fun meetingContentDao(): MeetingContentDao
+    abstract fun meetingContentDao(): ContentDao
     abstract fun assignmentDao(): AssignmentDao
     abstract fun attendanceDao(): AttendanceDao
 }

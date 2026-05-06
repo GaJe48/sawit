@@ -11,8 +11,7 @@ data class StudentEntity(
     val studentName: String,
     val studyProgram: String,
     val classCode: String,
-    val studentProfilePictureUrl: String,
-    val cachedAt: Long = System.currentTimeMillis()
+    val studentProfilePictureUrl: String
 )
 
 @Entity(tableName = "course")
@@ -24,8 +23,7 @@ data class CourseEntity(
     val room: String,
     val lecturerName: String,
     val lecturerPhoneNumber: String,
-    val lecturerProfilePictureUrl: String,
-    val cachedAt: Long = System.currentTimeMillis()
+    val lecturerProfilePictureUrl: String
 )
 
 @Entity(
@@ -41,26 +39,25 @@ data class CourseEntity(
 data class MeetingEntity(
     @PrimaryKey val meetingUrl: String,
     val courseCode: String,
-    val meetingNumber: Int,
-    val cachedAt: Long = System.currentTimeMillis()
+    val meetingNumber: Int
 )
 
 @Entity(
     tableName = "content",
+    primaryKeys = ["meetingUrl", "title"],
     foreignKeys = [ForeignKey(
         entity = MeetingEntity::class,
         parentColumns = ["meetingUrl"],
-        childColumns = ["meetingId"],
+        childColumns = ["meetingUrl"],
         onDelete = ForeignKey.CASCADE
     )],
-    indices = [Index("meetingId")]
+    indices = [Index("meetingUrl")]
 )
 data class ContentEntity(
-    @PrimaryKey val contentUrl: String,
-    val meetingId: String,
+    val meetingUrl: String,
     val type: String,
     val title: String,
-    val cachedAt: Long = System.currentTimeMillis()
+    val contentUrl: String
 )
 
 @Entity(
@@ -68,21 +65,20 @@ data class ContentEntity(
     foreignKeys = [ForeignKey(
         entity = MeetingEntity::class,
         parentColumns = ["meetingUrl"],
-        childColumns = ["meetingId"],
+        childColumns = ["meetingUrl"],
         onDelete = ForeignKey.CASCADE
     )],
-    indices = [Index("meetingId")]
+    indices = [Index("meetingUrl")]
 )
 data class AssignmentEntity(
     @PrimaryKey val assignmentUrl: String,
-    val meetingId: String,
+    val meetingUrl: String,
     val description: String?,
     val assignmentFileUrl: String?,
     val submissionFileUrl: String?,
     val deadline: String,
     val isSubmitted: Boolean,
-    val isOverdue: Boolean,
-    val cachedAt: Long = System.currentTimeMillis()
+    val isOverdue: Boolean
 )
 
 @Entity(
@@ -99,6 +95,5 @@ data class AssignmentEntity(
 data class AttendanceEntity(
     val courseCode: String,
     val attendanceIndex: Int,
-    val isAttended: Boolean,
-    val cachedAt: Long = System.currentTimeMillis()
+    val isAttended: Boolean
 )

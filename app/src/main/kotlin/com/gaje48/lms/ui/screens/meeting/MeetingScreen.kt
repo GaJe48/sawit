@@ -58,7 +58,11 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalHazeMaterialsApi::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalHazeMaterialsApi::class,
+    ExperimentalMaterial3ExpressiveApi::class
+)
 @Composable
 fun MeetingScreen(
     viewModel: MeetingViewModel,
@@ -66,10 +70,14 @@ fun MeetingScreen(
     onMeetingClick: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    val course = uiState.course ?: return
+    val meetings = uiState.meetings
+    val isRefreshing = uiState.isRefreshing
+
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val state = rememberPullToRefreshState()
-    val course = uiState.course ?: return
 
     Box(
         modifier = Modifier
@@ -90,14 +98,14 @@ fun MeetingScreen(
         )
 
         PullToRefreshBox(
-            isRefreshing = uiState.isRefreshing,
+            isRefreshing = isRefreshing,
             state = state,
             onRefresh = { viewModel.refreshDashboard() },
             contentAlignment = Alignment.TopCenter,
             indicator = {
                 PullToRefreshDefaults.LoadingIndicator(
                     state = state,
-                    isRefreshing = uiState.isRefreshing,
+                    isRefreshing = isRefreshing,
                     modifier = Modifier.padding(top = 16.dp)
                 )
             }
@@ -228,9 +236,7 @@ fun MeetingScreen(
                         }
                     }
 
-                    val allMeeting = uiState.allMeeting
-                    
-                    if (allMeeting.isEmpty()) {
+                    if (meetings.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.7f),
@@ -247,10 +253,10 @@ fun MeetingScreen(
                             )
                         }
 
-                        items(allMeeting) { meeting ->
-                            MeetingExpressiveItem(
+                        items(meetings) { meeting ->
+                            MeetingCard(
                                 index = meeting.meetingNumber + 1,
-                                onItemClick = { onMeetingClick(meeting.meetingUrl) },
+                                onMeetingClick = { onMeetingClick(meeting.meetingUrl) },
                             )
                         }
                     }
@@ -261,11 +267,11 @@ fun MeetingScreen(
 }
 
 @Composable
-fun MeetingExpressiveItem(index: Int, onItemClick: () -> Unit) {
+fun MeetingCard(index: Int, onMeetingClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        onClick = onItemClick,
+        onClick = onMeetingClick,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),

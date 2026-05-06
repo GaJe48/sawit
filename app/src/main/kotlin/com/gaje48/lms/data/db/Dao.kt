@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.gaje48.lms.model.AssignmentScreenData
+import com.gaje48.lms.model.AttendanceVmData
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -24,17 +26,15 @@ interface CourseDao {
     fun observeAll(): Flow<List<CourseEntity>>
 
     @Upsert
-    suspend fun upsertAll(courses: List<CourseEntity>)
+    suspend fun upsert(courses: List<CourseEntity>)
 
-    @Query("DELETE FROM course WHERE courseCode NOT IN (:courseCodes)")
-    suspend fun clearByCourseCodes(courseCodes: List<String>)
+    @Query("DELETE FROM course WHERE courseCode NOT IN (:primaryKeys)")
+    suspend fun sync(primaryKeys: List<String>)
 
     @Transaction
-    suspend fun saveAll(courses: List<CourseEntity>) {
-        upsertAll(courses)
-
-        val courseCodes = courses.map { it.courseCode }
-        clearByCourseCodes(courseCodes)
+    suspend fun save(courses: List<CourseEntity>) {
+        upsert(courses)
+        sync(courses.map { it.courseCode })
     }
 
     @Query("DELETE FROM course")
@@ -43,80 +43,61 @@ interface CourseDao {
 
 @Dao
 interface MeetingDao {
-    @Query("SELECT * FROM meeting WHERE courseCode = :courseCode")
-    fun observeAll(courseCode: String): Flow<List<MeetingEntity>>
+    @Query("SELECT * FROM meeting WHERE courseCode = :foreignKey")
+    fun observeByCourse(foreignKey: String): Flow<List<MeetingEntity>>
 
     @Upsert
-    suspend fun upsertAll(meetings: List<MeetingEntity>)
-
-    @Query("DELETE FROM meeting WHERE meetingUrl NOT IN (:meetingUrls)")
-    suspend fun clearByMeetingUrls(meetingUrls: List<String>)
-
-    @Transaction
-    suspend fun saveAll(meetings: List<MeetingEntity>) {
-        upsertAll(meetings)
-
-        val meetingUrls = meetings.map { it.meetingUrl }
-        clearByMeetingUrls(meetingUrls)
-    }
+    suspend fun save(meetings: List<MeetingEntity>)
 }
 
 @Dao
-interface MeetingContentDao {
-    @Query("SELECT * FROM content WHERE meetingId = :meetingId")
-    fun observeAll(meetingId: Int): Flow<List<ContentEntity>>
+interface ContentDao {
+    @Query("SELECT * FROM content WHERE meetingUrl = :foreignKey")
+    fun observeByMeeting(foreignKey: String): Flow<List<ContentEntity>>
+
+    @Query("""
+        SELECT m.meetingNumber, c.contentUrl 
+        FROM meeting m 
+        LEFT JOIN content c ON m.meetingUrl = c.meetingUrl 
+        WHERE m.courseCode = :courseCode 
+        GROUP BY m.meetingUrl
+    """)
+    fun observeAttendanceVmDatas(courseCode: String): Flow<List<AttendanceVmData>>
 
     @Upsert
-    suspend fun upsertAll(contents: List<ContentEntity>)
-
-    @Query("DELETE FROM content WHERE contentUrl NOT IN (:contentUrls)")
-    suspend fun clearByContentUrls(contentUrls: List<String>)
-
-    @Transaction
-    suspend fun saveAll(contents: List<ContentEntity>) {
-        upsertAll(contents)
-
-        val contentUrls = contents.map { it.contentUrl }
-        clearByContentUrls(contentUrls)
-    }
+    suspend fun save(contents: List<ContentEntity>)
 }
 
 @Dao
 interface AssignmentDao {
-    @Query("SELECT * FROM assignment WHERE meetingId = :meetingId")
-    fun observe(meetingId: Int): Flow<List<AssignmentEntity>>
+    @Query("""
+        SELECT
+            a.assignmentUrl,
+            m.meetingNumber,
+            a.description, 
+            a.assignmentFileUrl, 
+            a.submissionFileUrl, 
+            a.deadline, 
+            a.isSubmitted, 
+            a.isOverdue
+        FROM assignment a
+        JOIN meeting m ON a.meetingUrl = m.meetingUrl
+        WHERE m.courseCode = :courseCode
+    """)
+    fun observeAssignmentScreenDatas(courseCode: String): Flow<List<AssignmentScreenData>>
 
     @Upsert
-    suspend fun upsertAll(assignments: List<AssignmentEntity>)
-
-    @Query("DELETE FROM assignment WHERE assignmentUrl NOT IN (:assignmentUrls)")
-    suspend fun clearByAssignmentUrls(assignmentUrls: List<String>)
-
-    @Transaction
-    suspend fun saveAll(assignments: List<AssignmentEntity>) {
-        upsertAll(assignments)
-
-        val assignmentUrls = assignments.map { it.assignmentUrl }
-        clearByAssignmentUrls(assignmentUrls)
-    }
+    suspend fun save(assignments: List<AssignmentEntity>)
 }
 
 @Dao
 interface AttendanceDao {
-    @Query("SELECT * FROM attendance WHERE courseCode = :courseCode")
-    fun observeAll(courseCode: String): Flow<List<AttendanceEntity>>
+    @Query("SELECT * FROM attendance")
+    fun observeAll(): Flow<List<AttendanceEntity>>
+    
+    @Query("SELECT * FROM attendance WHERE courseCode = :foreignKey")
+    fun observeByCourse(foreignKey: String): Flow<List<AttendanceEntity>>
 
     @Upsert
-    suspend fun upsertAll(attendances: List<AttendanceEntity>)
-
-    @Query("DELETE FROM attendance WHERE courseCode NOT IN (:courseCodes)")
-    suspend fun clearByCourseCodes(courseCodes: List<String>)
-
-    @Transaction
-    suspend fun saveAll(attendances: List<AttendanceEntity>) {
-        upsertAll(attendances)
-
-        val courseCodes = attendances.map { it.courseCode }
-        clearByCourseCodes(courseCodes)
-    }
+    suspend fun save(attendances: List<AttendanceEntity>)
 }
