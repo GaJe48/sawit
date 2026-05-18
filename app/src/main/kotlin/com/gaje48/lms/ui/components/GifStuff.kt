@@ -32,7 +32,8 @@ import com.gaje48.lms.R
 private fun rememberGifImageLoader(): ImageLoader {
     val context = LocalContext.current
     return remember(context) {
-        ImageLoader.Builder(context)
+        ImageLoader
+            .Builder(context)
             .components { add(ImageDecoderDecoder.Factory()) }
             .build()
     }
@@ -42,20 +43,20 @@ private fun rememberGifImageLoader(): ImageLoader {
 fun LoadingGif(
     modifier: Modifier = Modifier,
     size: Dp = 240.dp,
-    label: String = "Memuat data..."
+    label: String = "Memuat data...",
 ) {
     val imageLoader = rememberGifImageLoader()
 
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         AsyncImage(
             model = R.drawable.evernight,
             imageLoader = imageLoader,
             contentDescription = "Loading",
-            modifier = Modifier.size(size)
+            modifier = Modifier.size(size),
         )
 
         if (label.isEmpty()) return@Column
@@ -65,7 +66,7 @@ fun LoadingGif(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -74,20 +75,20 @@ fun LoadingGif(
 fun EmptyGif(
     modifier: Modifier = Modifier,
     size: Dp = 280.dp,
-    label: String = "Belum ada data"
+    label: String = "Belum ada data",
 ) {
     val imageLoader = rememberGifImageLoader()
 
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         AsyncImage(
             model = R.drawable.chen,
             imageLoader = imageLoader,
             contentDescription = "Kosong",
-            modifier = Modifier.width(size)
+            modifier = Modifier.width(size),
         )
 
         if (label.isEmpty()) return@Column
@@ -98,7 +99,7 @@ fun EmptyGif(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -115,13 +116,13 @@ fun ErrorGif(
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         AsyncImage(
             model = R.drawable.bocchi,
             imageLoader = imageLoader,
             contentDescription = "Kosong",
-            modifier = Modifier.width(size)
+            modifier = Modifier.width(size),
         )
 
         Spacer(Modifier.height(8.dp))
@@ -129,12 +130,12 @@ fun ErrorGif(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
         Button(
             onClick = onRetry,
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
         ) {
             Icon(Icons.Default.WifiOff, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))

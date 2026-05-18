@@ -9,14 +9,14 @@ val PrimaryContainerLight = Color(0xFFD8E2FF)
 val OnPrimaryContainerLight = Color(0xFF001A41)
 
 // --- Dark Scheme (Premium Charcoal & Indigo) ---
-val PrimaryDark = Color(0xFFADC6FF) 
+val PrimaryDark = Color(0xFFADC6FF)
 val OnPrimaryDark = Color(0xFF002E69)
 val PrimaryContainerDark = Color(0xFF004494)
 val OnPrimaryContainerDark = Color(0xFFD8E2FF)
 
 val SurfaceDark = Color(0xFF111318) // Arang gelap yang elegan
 val OnSurfaceDark = Color(0xFFE2E2E6)
-val SurfaceVariantDark = Color(0xFF44474E) 
+val SurfaceVariantDark = Color(0xFF44474E)
 val OnSurfaceVariantDark = Color(0xFFC4C6D0)
 
 val SecondaryDark = Color(0xFFBBC6E4)

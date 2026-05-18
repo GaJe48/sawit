@@ -18,3 +18,8 @@ local.properties
 /app/src/androidTest
 target/
 *.so
+*.onnx
+*.txt
+*.html
+*.png
+*.mnn

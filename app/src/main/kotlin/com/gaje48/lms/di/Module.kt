@@ -1,7 +1,6 @@
 package com.gaje48.lms.di
 
 import androidx.room.Room
-import com.gaje48.lms.data.InternetDataSource
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.data.LocalDataSource
 import com.gaje48.lms.data.StorageDataSource
@@ -18,29 +17,31 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
-val module = module {
-    single { NotificationHelper(androidContext()) }
-    single { InternetDataSource() }
-    single { LocalDataSource(androidContext()) }
-    single { StorageDataSource(androidContext()) }
-    single {
-        Room.databaseBuilder(
-            androidContext(),
-            LmsDatabase::class.java,
-            "lms.db"
-        ).build()
+val module =
+    module {
+        single { NotificationHelper(androidContext()) }
+        single { uniffi.lms_rust.InternetDataSource() }
+        single { LocalDataSource(androidContext()) }
+        single { StorageDataSource(androidContext()) }
+        single {
+            Room
+                .databaseBuilder(
+                    androidContext(),
+                    LmsDatabase::class.java,
+                    "lms.db",
+                ).build()
+        }
+        single { get<LmsDatabase>().studentDao() }
+        single { get<LmsDatabase>().courseDao() }
+        single { get<LmsDatabase>().meetingDao() }
+        single { get<LmsDatabase>().meetingContentDao() }
+        single { get<LmsDatabase>().assignmentDao() }
+        single { get<LmsDatabase>().attendanceDao() }
+        singleOf(::LmsRepository)
+        viewModelOf(::LoginViewModel)
+        viewModelOf(::DashboardViewModel)
+        viewModelOf(::MeetingViewModel)
+        viewModelOf(::ContentViewModel)
+        viewModelOf(::AssignmentViewModel)
+        viewModelOf(::AttendanceViewModel)
     }
-    single { get<LmsDatabase>().studentDao() }
-    single { get<LmsDatabase>().courseDao() }
-    single { get<LmsDatabase>().meetingDao() }
-    single { get<LmsDatabase>().meetingContentDao() }
-    single { get<LmsDatabase>().assignmentDao() }
-    single { get<LmsDatabase>().attendanceDao() }
-    singleOf(::LmsRepository)
-    viewModelOf(::LoginViewModel)
-    viewModelOf(::DashboardViewModel)
-    viewModelOf(::MeetingViewModel)
-    viewModelOf(::ContentViewModel)
-    viewModelOf(::AssignmentViewModel)
-    viewModelOf(::AttendanceViewModel)
-}

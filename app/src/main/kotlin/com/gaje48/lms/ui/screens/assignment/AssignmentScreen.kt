@@ -73,12 +73,12 @@ import dev.chrisbanes.haze.rememberHazeState
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalHazeMaterialsApi::class,
-    ExperimentalMaterial3ExpressiveApi::class
+    ExperimentalMaterial3ExpressiveApi::class,
 )
 @Composable
 fun AssignmentScreen(
     viewModel: AssignmentViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -94,22 +94,35 @@ fun AssignmentScreen(
     val state = rememberPullToRefreshState()
 
     var currentSubmitUrl by remember { mutableStateOf("") }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && currentSubmitUrl.isNotEmpty()) viewModel.uploadSubmission(uri, currentSubmitUrl)
-    }
-
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f),
-                            MaterialTheme.colorScheme.surface
-                        )
-                    )
+    val launcher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null && currentSubmitUrl.isNotEmpty()) {
+                viewModel.uploadSubmission(
+                    uri,
+                    currentSubmitUrl,
                 )
+            }
+        }
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors =
+                                listOf(
+                                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f),
+                                    MaterialTheme.colorScheme.surface,
+                                ),
+                        ),
+                    ),
         )
 
         PullToRefreshBox(
@@ -121,9 +134,9 @@ fun AssignmentScreen(
                 PullToRefreshDefaults.LoadingIndicator(
                     state = state,
                     isRefreshing = isRefreshing,
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 16.dp),
                 )
-            }
+            },
         ) {
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -131,88 +144,102 @@ fun AssignmentScreen(
                 topBar = {
                     LargeTopAppBar(
                         scrollBehavior = scrollBehavior,
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent
-                        ),
-                        modifier = Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.ultraThin()
-                        ),
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                                scrolledContainerColor = Color.Transparent,
+                            ),
+                        modifier =
+                            Modifier.hazeEffect(
+                                state = hazeState,
+                                style = HazeMaterials.ultraThin(),
+                            ),
                         title = {
                             Column {
                                 Text(
                                     "Tugas Kuliah",
                                     style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.ExtraBold
+                                    fontWeight = FontWeight.ExtraBold,
                                 )
                                 Text(
                                     courseName,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         },
                         navigationIcon = {
                             IconButton(
                                 onClick = onBackClick,
-                                modifier = Modifier
-                                    .padding(start = 8.dp, end = 8.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
+                                modifier =
+                                    Modifier
+                                        .padding(start = 8.dp, end = 8.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            CircleShape,
+                                        ),
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                )
                             }
-                        }
+                        },
                     )
-                }
+                },
             ) { paddingValues ->
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .hazeSource(hazeState),
-                    contentPadding = PaddingValues(
-                        top = paddingValues.calculateTopPadding() + 16.dp,
-                        bottom = 32.dp,
-                        start = 20.dp,
-                        end = 20.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .hazeSource(hazeState),
+                    contentPadding =
+                        PaddingValues(
+                            top = paddingValues.calculateTopPadding() + 16.dp,
+                            bottom = 32.dp,
+                            start = 20.dp,
+                            end = 20.dp,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     if (assignmentScreenDatas.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxSize(),
-                                contentAlignment = Alignment.Center
+                                contentAlignment = Alignment.Center,
                             ) {
                                 when {
                                     isLoading -> LoadingGif()
-                                    errorMessage != null -> ErrorGif(
-                                        message = errorMessage,
-                                        onRetry = { viewModel.fetchAssignments() }
-                                    )
+                                    errorMessage != null ->
+                                        ErrorGif(
+                                            message = errorMessage,
+                                            onRetry = { viewModel.fetchAssignments() },
+                                        )
+
                                     else -> EmptyGif(label = "Belum ada tugas")
                                 }
                             }
                         }
                     } else {
-                        val mimeTypes = arrayOf(
-                            "application/pdf",
-                            "application/msword",
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            "application/vnd.ms-powerpoint",
-                            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                            "application/vnd.ms-excel",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            "application/zip",
-                            "application/x-7z-compressed",
-                            "application/x-rar-compressed"
-                        )
+                        val mimeTypes =
+                            arrayOf(
+                                "application/pdf",
+                                "application/msword",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.ms-powerpoint",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "application/vnd.ms-excel",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/zip",
+                                "application/x-7z-compressed",
+                                "application/x-rar-compressed",
+                            )
 
                         items(assignmentScreenDatas) { assignmentScreenData ->
                             AssignmentCard(
                                 assignmentScreenData = assignmentScreenData,
                                 onDownloadClick = {
-                                    assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadFile)
+                                    assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadAssignmentFile)
                                 },
                                 onViewClick = {
                                     assignmentScreenData.submissionFileUrl?.let(uriHandler::openUri)
@@ -220,7 +247,7 @@ fun AssignmentScreen(
                                 onSubmitClick = {
                                     currentSubmitUrl = assignmentScreenData.assignmentUrl
                                     launcher.launch(mimeTypes)
-                                }
+                                },
                             )
                         }
                     }
@@ -235,44 +262,47 @@ fun AssignmentCard(
     assignmentScreenData: AssignmentScreenData,
     onDownloadClick: () -> Unit,
     onViewClick: () -> Unit,
-    onSubmitClick: () -> Unit
+    onSubmitClick: () -> Unit,
 ) {
-    val statusColor = when {
-        assignmentScreenData.isSubmitted -> MaterialTheme.colorScheme.primary
-        assignmentScreenData.isOverdue -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.secondary
-    }
+    val statusColor =
+        when {
+            assignmentScreenData.isSubmitted -> MaterialTheme.colorScheme.primary
+            assignmentScreenData.isOverdue -> MaterialTheme.colorScheme.error
+            else -> MaterialTheme.colorScheme.secondary
+        }
 
-    val statusLabel = when {
-        assignmentScreenData.isSubmitted -> "Sudah Dikumpulkan"
-        assignmentScreenData.isOverdue -> "Waktu Berakhir"
-        else -> "Belum Dikumpulkan"
-    }
+    val statusLabel =
+        when {
+            assignmentScreenData.isSubmitted -> "Sudah Dikumpulkan"
+            assignmentScreenData.isOverdue -> "Waktu Berakhir"
+            else -> "Belum Dikumpulkan"
+        }
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        colors =
+            CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ),
     ) {
         Column(modifier = Modifier.padding(24.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(48.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = (assignmentScreenData.meetingNumber + 1).toString(),
+                            text = (assignmentScreenData.meetingNumber).toString(),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.tertiary
+                            color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
                 }
@@ -281,7 +311,7 @@ fun AssignmentCard(
                     Text(
                         statusLabel,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
                     )
                 }
             }
@@ -292,7 +322,7 @@ fun AssignmentCard(
                 "Deskripsi Tugas",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -302,7 +332,7 @@ fun AssignmentCard(
                     text = it,
                     style = MaterialTheme.typography.bodyLarge,
                     lineHeight = 24.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
 
@@ -317,14 +347,14 @@ fun AssignmentCard(
                     Icons.Default.Info,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Batas: ${assignmentScreenData.deadline}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
                 )
             }
 
@@ -332,14 +362,14 @@ fun AssignmentCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 assignmentScreenData.assignmentFileUrl?.let {
                     FilledTonalButton(
                         onClick = onDownloadClick,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp)
+                        contentPadding = PaddingValues(vertical = 12.dp),
                     ) {
                         Icon(Icons.Default.Description, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -352,7 +382,7 @@ fun AssignmentCard(
                         onClick = onViewClick,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp)
+                        contentPadding = PaddingValues(vertical = 12.dp),
                     ) {
                         Icon(Icons.Default.Description, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -367,14 +397,17 @@ fun AssignmentCard(
                     onClick = onSubmitClick,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp)
+                    contentPadding = PaddingValues(vertical = 16.dp),
                 ) {
                     Icon(Icons.Default.FileUpload, null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        if (assignmentScreenData.isSubmitted) "Ganti Jawaban"
-                        else "Kumpulkan Sekarang",
-                        fontWeight = FontWeight.ExtraBold
+                        if (assignmentScreenData.isSubmitted) {
+                            "Ganti Jawaban"
+                        } else {
+                            "Kumpulkan Sekarang"
+                        },
+                        fontWeight = FontWeight.ExtraBold,
                     )
                 }
             }

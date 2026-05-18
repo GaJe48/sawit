@@ -6,6 +6,7 @@ import androidx.room.Transaction
 import androidx.room.Upsert
 import com.gaje48.lms.model.AssignmentScreenData
 import com.gaje48.lms.model.AttendanceVmData
+import com.gaje48.lms.model.ContentVmData
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -55,13 +56,30 @@ interface ContentDao {
     @Query("SELECT * FROM content WHERE meetingUrl = :foreignKey")
     fun observeByMeeting(foreignKey: String): Flow<List<ContentEntity>>
 
-    @Query("""
+    @Query(
+        """
+        SELECT 
+            c.type,
+            c.title,
+            c.contentUrl,
+            m.meetingNumber, 
+            cr.courseName 
+        FROM content c
+        INNER JOIN meeting m ON c.meetingUrl = m.meetingUrl
+        INNER JOIN course cr ON m.courseCode = cr.courseCode
+        WHERE c.meetingUrl = :meetingUrl
+    """,
+    )
+    fun observeContentVmDatas(meetingUrl: String): Flow<List<ContentVmData>>
+
+    @Query(
+        """
         SELECT m.meetingNumber, c.contentUrl 
         FROM meeting m 
-        LEFT JOIN content c ON m.meetingUrl = c.meetingUrl 
-        WHERE m.courseCode = :courseCode 
-        GROUP BY m.meetingUrl
-    """)
+        INNER JOIN content c ON m.meetingUrl = c.meetingUrl 
+        WHERE m.courseCode = :courseCode AND c.contentUrl IS NOT NULL
+    """,
+    )
     fun observeAttendanceVmDatas(courseCode: String): Flow<List<AttendanceVmData>>
 
     @Upsert
@@ -70,7 +88,8 @@ interface ContentDao {
 
 @Dao
 interface AssignmentDao {
-    @Query("""
+    @Query(
+        """
         SELECT
             a.assignmentUrl,
             m.meetingNumber,
@@ -83,7 +102,8 @@ interface AssignmentDao {
         FROM assignment a
         JOIN meeting m ON a.meetingUrl = m.meetingUrl
         WHERE m.courseCode = :courseCode
-    """)
+    """,
+    )
     fun observeAssignmentScreenDatas(courseCode: String): Flow<List<AssignmentScreenData>>
 
     @Upsert
@@ -94,7 +114,7 @@ interface AssignmentDao {
 interface AttendanceDao {
     @Query("SELECT * FROM attendance")
     fun observeAll(): Flow<List<AttendanceEntity>>
-    
+
     @Query("SELECT * FROM attendance WHERE courseCode = :foreignKey")
     fun observeByCourse(foreignKey: String): Flow<List<AttendanceEntity>>
 

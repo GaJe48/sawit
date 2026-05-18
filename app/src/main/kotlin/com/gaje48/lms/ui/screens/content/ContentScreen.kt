@@ -63,7 +63,7 @@ import dev.chrisbanes.haze.rememberHazeState
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
-    ExperimentalHazeMaterialsApi::class
+    ExperimentalHazeMaterialsApi::class,
 )
 @Composable
 fun ContentScreen(
@@ -82,21 +82,24 @@ fun ContentScreen(
     val state = rememberPullToRefreshState()
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
-                            MaterialTheme.colorScheme.surface
-                        )
-                    )
-                )
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors =
+                                listOf(
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+                                    MaterialTheme.colorScheme.surface,
+                                ),
+                        ),
+                    ),
         )
 
         PullToRefreshBox(
@@ -108,9 +111,9 @@ fun ContentScreen(
                 PullToRefreshDefaults.LoadingIndicator(
                     state = state,
                     isRefreshing = uiState.isRefreshing,
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 16.dp),
                 )
-            }
+            },
         ) {
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -118,58 +121,64 @@ fun ContentScreen(
                 topBar = {
                     LargeTopAppBar(
                         scrollBehavior = scrollBehavior,
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent
-                        ),
-                        modifier = Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.ultraThin()
-                        ),
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                                scrolledContainerColor = Color.Transparent,
+                            ),
+                        modifier =
+                            Modifier.hazeEffect(
+                                state = hazeState,
+                                style = HazeMaterials.ultraThin(),
+                            ),
                         title = {
                             Text(
                                 "Detail Pertemuan",
                                 style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.ExtraBold
+                                fontWeight = FontWeight.ExtraBold,
                             )
                         },
                         navigationIcon = {
                             IconButton(
                                 onClick = onBackClick,
-                                modifier = Modifier
-                                    .padding(start = 8.dp, end = 8.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
+                                modifier =
+                                    Modifier
+                                        .padding(start = 8.dp, end = 8.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape),
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
-                        }
+                        },
                     )
-                }
+                },
             ) { paddingValues ->
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .hazeSource(hazeState),
-                    contentPadding = PaddingValues(
-                        top = paddingValues.calculateTopPadding() + 16.dp,
-                        bottom = 24.dp,
-                        start = 20.dp,
-                        end = 20.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .hazeSource(hazeState),
+                    contentPadding =
+                        PaddingValues(
+                            top = paddingValues.calculateTopPadding() + 16.dp,
+                            bottom = 24.dp,
+                            start = 20.dp,
+                            end = 20.dp,
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     if (contents.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxSize(),
-                                contentAlignment = Alignment.Center
+                                contentAlignment = Alignment.Center,
                             ) {
                                 when {
                                     isLoading -> LoadingGif()
-                                    errorMessage != null -> ErrorGif(
-                                        message = errorMessage,
-                                        onRetry = { viewModel.fetchContents() }
-                                    )
+                                    errorMessage != null ->
+                                        ErrorGif(
+                                            message = errorMessage,
+                                            onRetry = { viewModel.fetchContents() },
+                                        )
                                     else -> EmptyGif(label = "Tidak ada file materi yang tersedia")
                                 }
                             }
@@ -177,11 +186,12 @@ fun ContentScreen(
                     } else {
                         val fileKeywords = listOf("pdf", "word", "powerpoint", "excel", "archive")
 
-                        val (files, links) = contents.partition { item ->
-                            fileKeywords.any { keyword ->
-                                item.type.contains(keyword, ignoreCase = true)
+                        val (files, links) =
+                            contents.partition { item ->
+                                fileKeywords.any { keyword ->
+                                    item.type.contains(keyword, ignoreCase = true)
+                                }
                             }
-                        }
 
                         if (files.isNotEmpty()) {
                             item {
@@ -193,7 +203,7 @@ fun ContentScreen(
                                     description = "Ketuk untuk mengunduh dokumen",
                                     icon = iconPainter(item.type),
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                                    onClick = { viewModel.downloadFile(item.contentUrl) }
+                                    onClick = { viewModel.downloadFile(item.contentUrl) },
                                 )
                             }
                         }
@@ -208,7 +218,7 @@ fun ContentScreen(
                                     description = "Ketuk untuk membuka tautan",
                                     icon = iconPainter(item.type),
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                                    onClick = { uriHandler.openUri(item.contentUrl) }
+                                    onClick = { uriHandler.openUri(item.contentUrl) },
                                 )
                             }
                         }
@@ -220,25 +230,29 @@ fun ContentScreen(
 }
 
 @Composable
-fun SectionHeader(icon: ImageVector, label: String) {
+fun SectionHeader(
+    icon: ImageVector,
+    label: String,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 4.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -249,28 +263,28 @@ fun ContentCard(
     description: String,
     icon: Painter,
     containerColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(32.dp),
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = containerColor)
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Row(
             modifier = Modifier.padding(24.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                modifier = Modifier.size(56.dp)
+                modifier = Modifier.size(56.dp),
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
                     modifier = Modifier.padding(12.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
+                    tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
             Spacer(modifier = Modifier.width(20.dp))
@@ -278,12 +292,12 @@ fun ContentCard(
                 Text(
                     title,
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.ExtraBold,
                 )
                 Text(
                     description,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -291,12 +305,11 @@ fun ContentCard(
 }
 
 @Composable
-private fun iconPainter(type: String): Painter {
-    return when {
+private fun iconPainter(type: String): Painter =
+    when {
         type.contains("pdf") -> painterResource(id = R.drawable.pdf)
         type.contains("powerpoint") -> painterResource(id = R.drawable.ppt)
         type.contains("picture") -> painterResource(id = R.drawable.image)
         type.contains("video") -> painterResource(id = R.drawable.video)
         else -> painterResource(id = R.drawable.link)
     }
-}

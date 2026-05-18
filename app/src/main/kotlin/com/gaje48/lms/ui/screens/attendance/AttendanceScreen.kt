@@ -68,11 +68,12 @@ import dev.chrisbanes.haze.rememberHazeState
 fun PreviewAttendanceScreen() {
     AttendanceScreenStateless(
         courseName = "Pemrograman Visual Lanjut",
-        attendanceScreenDatas = listOf(
-            AttendanceScreenData(true, "https://example.com"),
-            AttendanceScreenData(false, "https://example.com"),
-            AttendanceScreenData(false, null)
-        ),
+        attendanceScreenDatas =
+            listOf(
+                AttendanceScreenData(true, listOf("https://example.com")),
+                AttendanceScreenData(false, listOf("https://example.com")),
+                AttendanceScreenData(false, emptyList()),
+            ),
         isProcessingAttendance = false,
         isLoading = false,
         isRefreshing = false,
@@ -87,7 +88,7 @@ fun PreviewAttendanceScreen() {
 @Composable
 fun AttendanceScreen(
     viewModel: AttendanceViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -101,14 +102,14 @@ fun AttendanceScreen(
         onRefresh = { viewModel.getAttendances(UpdateAction.REFRESH) },
         onRetry = { viewModel.getAttendances() },
         onAttendClick = { viewModel.processAttendance(it) },
-        onBackClick = onBackClick
+        onBackClick = onBackClick,
     )
 }
 
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalMaterial3ExpressiveApi::class,
-    ExperimentalHazeMaterialsApi::class
+    ExperimentalHazeMaterialsApi::class,
 )
 @Composable
 fun AttendanceScreenStateless(
@@ -120,8 +121,8 @@ fun AttendanceScreenStateless(
     errorMessage: String?,
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
-    onAttendClick: (String) -> Unit,
-    onBackClick: () -> Unit
+    onAttendClick: (List<String>) -> Unit,
+    onBackClick: () -> Unit,
 ) {
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -135,26 +136,29 @@ fun AttendanceScreenStateless(
                 Row(horizontalArrangement = Arrangement.Center) {
                     LoadingGif(label = "Sedang proses absen...")
                 }
-            }
+            },
         )
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f),
-                            MaterialTheme.colorScheme.surface
-                        )
-                    )
-                )
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors =
+                                listOf(
+                                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f),
+                                    MaterialTheme.colorScheme.surface,
+                                ),
+                        ),
+                    ),
         )
 
         PullToRefreshBox(
@@ -166,9 +170,9 @@ fun AttendanceScreenStateless(
                 PullToRefreshDefaults.LoadingIndicator(
                     state = pullToRefreshState,
                     isRefreshing = isRefreshing,
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 16.dp),
                 )
-            }
+            },
         ) {
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -176,20 +180,23 @@ fun AttendanceScreenStateless(
                 topBar = {
                     LargeTopAppBar(
                         scrollBehavior = scrollBehavior,
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent
-                        ),
-                        modifier = Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.ultraThin()
-                        ),
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = Color.Transparent,
+                                scrolledContainerColor = Color.Transparent,
+                            ),
+                        modifier =
+                            Modifier.hazeEffect(
+                                state = hazeState,
+                                style = HazeMaterials.ultraThin(),
+                            ),
                         navigationIcon = {
                             IconButton(
                                 onClick = onBackClick,
-                                modifier = Modifier
-                                    .padding(start = 8.dp, end = 8.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape)
+                                modifier =
+                                    Modifier
+                                        .padding(start = 8.dp, end = 8.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), CircleShape),
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
@@ -199,42 +206,45 @@ fun AttendanceScreenStateless(
                                 Text(
                                     "Rekap Presensi",
                                     style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.ExtraBold
+                                    fontWeight = FontWeight.ExtraBold,
                                 )
                                 Text(
                                     courseName,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                        }
+                        },
                     )
-                }
+                },
             ) { paddingValues ->
                 if (attendanceScreenDatas.isEmpty()) {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .hazeSource(hazeState),
-                        contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 16.dp,
-                            bottom = 24.dp,
-                            start = 20.dp,
-                            end = 20.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .hazeSource(hazeState),
+                        contentPadding =
+                            PaddingValues(
+                                top = paddingValues.calculateTopPadding() + 16.dp,
+                                bottom = 24.dp,
+                                start = 20.dp,
+                                end = 20.dp,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
                         item {
                             Box(
                                 modifier = Modifier.fillParentMaxSize(),
-                                contentAlignment = Alignment.Center
+                                contentAlignment = Alignment.Center,
                             ) {
                                 when {
                                     isLoading -> LoadingGif()
-                                    errorMessage != null -> ErrorGif(
-                                        message = errorMessage,
-                                        onRetry = onRetry
-                                    )
+                                    errorMessage != null ->
+                                        ErrorGif(
+                                            message = errorMessage,
+                                            onRetry = onRetry,
+                                        )
                                     else -> EmptyGif(label = "Belum ada data absen")
                                 }
                             }
@@ -242,43 +252,46 @@ fun AttendanceScreenStateless(
                     }
                 } else {
                     LazyVerticalGrid(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .hazeSource(hazeState),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .hazeSource(hazeState),
                         columns = GridCells.Fixed(2),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 16.dp,
-                            bottom = 32.dp,
-                            start = 20.dp,
-                            end = 20.dp
-                        )
+                        contentPadding =
+                            PaddingValues(
+                                top = paddingValues.calculateTopPadding() + 16.dp,
+                                bottom = 32.dp,
+                                start = 20.dp,
+                                end = 20.dp,
+                            ),
                     ) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             ElevatedCard(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                                 shape = RoundedCornerShape(32.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                )
+                                colors =
+                                    CardDefaults.elevatedCardColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    ),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(24.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                 ) {
                                     Column {
                                         Text(
                                             "Status Kehadiran",
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                                         )
                                         Text(
                                             "${attendanceScreenDatas.count { it.isAttended }} dari ${attendanceScreenDatas.size} Pertemuan",
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
                                         )
                                     }
                                     Text(
@@ -286,7 +299,7 @@ fun AttendanceScreenStateless(
                                         style = MaterialTheme.typography.displaySmall,
                                         fontWeight = FontWeight.Black,
                                         color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(start = 10.dp)
+                                        modifier = Modifier.padding(start = 10.dp),
                                     )
                                 }
                             }
@@ -296,38 +309,39 @@ fun AttendanceScreenStateless(
                             ElevatedCard(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                                 shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
+                                colors =
+                                    CardDefaults.elevatedCardColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    ),
                             ) {
                                 Row(
                                     modifier = Modifier.padding(20.dp),
                                     verticalAlignment = Alignment.Top,
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Warning,
                                         contentDescription = "Pemberitahuan",
                                         tint = MaterialTheme.colorScheme.tertiary,
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(28.dp),
                                     )
                                     Column {
                                         Text(
                                             "Pemberitahuan Sistem Presensi",
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.ExtraBold,
-                                            modifier = Modifier.padding(bottom = 8.dp)
+                                            modifier = Modifier.padding(bottom = 8.dp),
                                         )
                                         Text(
                                             "Secara bawaan, sistem mencatat kehadiran Anda saat mengunduh file materi. Namun, kebijakan presensi dapat berbeda tergantung dosen (misalnya via link form atau pengumpulan tugas).",
                                             style = MaterialTheme.typography.bodyMedium,
-                                            modifier = Modifier.padding(bottom = 12.dp)
+                                            modifier = Modifier.padding(bottom = 12.dp),
                                         )
                                         Text(
                                             "Jika status presensi belum berubah, mohon tidak menekan tombol berulang kali. Tindakan tersebut dapat membebani server dan berisiko memblokir akses Anda. Harap ikuti instruksi presensi dari masing-masing dosen.",
                                             style = MaterialTheme.typography.labelLarge,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.SemiBold,
                                         )
                                     }
                                 }
@@ -338,7 +352,7 @@ fun AttendanceScreenStateless(
                             Text(
                                 "Riwayat Sesi",
                                 style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Black
+                                fontWeight = FontWeight.Black,
                             )
                         }
 
@@ -347,8 +361,8 @@ fun AttendanceScreenStateless(
                                 attendanceIndex = index + 1,
                                 attendanceScreenData = attendanceScreenData,
                                 onAttendClick = {
-                                    attendanceScreenData.contentUrl?.let { onAttendClick(it) }
-                                }
+                                    onAttendClick(attendanceScreenData.contentUrls)
+                                },
                             )
                         }
                     }
@@ -362,47 +376,58 @@ fun AttendanceScreenStateless(
 fun AttendanceCard(
     attendanceIndex: Int,
     attendanceScreenData: AttendanceScreenData,
-    onAttendClick: () -> Unit
+    onAttendClick: () -> Unit,
 ) {
     val containerColor =
-        if (attendanceScreenData.isAttended) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-        else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        if (attendanceScreenData.isAttended) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        } else {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        }
 
     val contentColor =
-        if (attendanceScreenData.isAttended) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.error
+        if (attendanceScreenData.isAttended) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.error
+        }
 
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier =
+                Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
             horizontalAlignment = Alignment.Start,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = "SESI",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = contentColor.copy(alpha = 0.7f),
-                    letterSpacing = 2.sp
+                    letterSpacing = 2.sp,
                 )
 
-                Icon(imageVector =
-                        if (attendanceScreenData.isAttended) Icons.Default.CheckCircle
-                        else Icons.Default.Warning,
+                Icon(
+                    imageVector =
+                        if (attendanceScreenData.isAttended) {
+                            Icons.Default.CheckCircle
+                        } else {
+                            Icons.Default.Warning
+                        },
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = contentColor
+                    tint = contentColor,
                 )
             }
 
@@ -410,49 +435,50 @@ fun AttendanceCard(
                 text = "%02d".format(attendanceIndex),
                 style = MaterialTheme.typography.displayMedium,
                 fontWeight = FontWeight.Black,
-                color = contentColor
+                color = contentColor,
             )
 
             if (attendanceScreenData.isAttended) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(36.dp),
-                    contentAlignment = Alignment.CenterStart
+                    contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(
                         "Telah Hadir",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
-            } else if (attendanceScreenData.contentUrl != null) {
+            } else if (attendanceScreenData.contentUrls.isNotEmpty()) {
                 Button(
                     onClick = onAttendClick,
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    ),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    modifier = Modifier.fillMaxWidth().height(36.dp)
+                    modifier = Modifier.fillMaxWidth().height(36.dp),
                 ) {
                     Text(
                         "Isi Absen",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
+                        letterSpacing = 1.sp,
                     )
                 }
             } else {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(36.dp),
-                    contentAlignment = Alignment.CenterStart
+                    contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(
                         "Tidak Ada Link Absen",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
             }

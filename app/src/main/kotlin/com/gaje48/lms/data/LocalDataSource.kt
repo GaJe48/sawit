@@ -35,7 +35,8 @@ class LocalDataSource(
 
     private val aead: Aead by lazy {
         AeadConfig.register()
-        AndroidKeysetManager.Builder()
+        AndroidKeysetManager
+            .Builder()
             .withSharedPref(context, KEYSET_NAME, KEYSET_PREF_FILE)
             .withKeyTemplate(KeyTemplates.get(KEY_TEMPLATE))
             .withMasterKeyUri(MASTER_KEY_URI)
@@ -44,17 +45,21 @@ class LocalDataSource(
             .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
     }
 
-    val credentials: Flow<Pair<String, String>?> = context.credentialsDataStore.data
-        .map { preferences ->
-            val nim = preferences[Keys.nim]
-            val pwd = preferences[Keys.password]?.let { decryptPassword(it) }
+    val credentials: Flow<Pair<String, String>?> =
+        context.credentialsDataStore.data
+            .map { preferences ->
+                val nim = preferences[Keys.nim]
+                val pwd = preferences[Keys.password]?.let { decryptPassword(it) }
 
-            if (nim != null && pwd != null) Pair(nim, pwd) else null
-        }
+                if (nim != null && pwd != null) Pair(nim, pwd) else null
+            }
 
     suspend fun getCredentials(): Pair<String, String>? = credentials.first()
 
-    suspend fun saveCredentials(nim: String, password: String) {
+    suspend fun saveCredentials(
+        nim: String,
+        password: String,
+    ) {
         context.credentialsDataStore.edit { preferences ->
             preferences[Keys.nim] = nim
             preferences[Keys.password] = encryptPassword(password)
@@ -77,6 +82,4 @@ class LocalDataSource(
         val clearBytes = aead.decrypt(Base64.decode(cipherText, Base64.NO_WRAP), ASSOCIATED_DATA)
         return String(clearBytes, StandardCharsets.UTF_8)
     }
-
-
 }

@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.koin.compiler)
     alias(libs.plugins.google.devtools.ksp)
+    alias(libs.plugins.ktlint)
 }
 
 android {
@@ -28,7 +29,7 @@ android {
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
             signingConfig = signingConfigs.getByName("debug")
         }
@@ -60,8 +61,6 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    implementation(libs.jsoup)
-    implementation(libs.text.recognition)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     implementation(libs.androidx.datastore.preferences)
@@ -72,13 +71,9 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.haze)
     implementation(libs.haze.materials)
-    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.tink.android)
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.compose.viewmodel)
-    implementation(platform(libs.ktor.bom))
-    implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.cio)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

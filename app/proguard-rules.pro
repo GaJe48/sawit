@@ -22,3 +22,7 @@
 
 -keep class com.google.mlkit.vision.text.** { *; }
 -keep class com.google.mlkit.common.internal.** { *; }
+
+-dontwarn com.sun.jna.**
+-keep class com.sun.jna.** { *; }
+-keep class uniffi.** { *; }

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.model.AttendanceScreenData
 import com.gaje48.lms.model.UpdateAction
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,14 +21,13 @@ data class AttendanceUiState(
     val isProcessingAttendance: Boolean = false,
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
 )
 
 class AttendanceViewModel(
     private val courseCode: String,
-    private val lmsRepository: LmsRepository
+    private val lmsRepository: LmsRepository,
 ) : ViewModel() {
-
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
@@ -35,58 +36,63 @@ class AttendanceViewModel(
     private val _isProcessingAttendance = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    val uiState = combine(
-        lmsRepository.courses,
+    val uiState =
         combine(
-            lmsRepository.observeAttendances(courseCode),
-            lmsRepository.observeAttendanceVmDatas(courseCode)
-        ) { attendances, attendanceVmDatas ->
-            val attendanceVmDataMap = attendanceVmDatas.associate { it.meetingNumber to it.contentUrl }
+            lmsRepository.courses,
+            combine(
+                lmsRepository.observeAttendances(courseCode),
+                lmsRepository.observeAttendanceVmDatas(courseCode),
+            ) { attendances, attendanceVmDatas ->
+                val attendanceVmDataMap =
+                    attendanceVmDatas
+                        .groupBy({ it.meetingNumber }, { it.contentUrl })
 
-            attendances.mapIndexed { index, isAttended ->
-                val meetingNumber = index + 1
+                attendances.mapIndexed { index, isAttended ->
+                    val meetingNumber = index + 1
 
-                AttendanceScreenData(
-                    isAttended = isAttended,
-                    contentUrl = attendanceVmDataMap[meetingNumber]
-                )
-            }
-        },
-        _isLoading,
-        _isRefreshing,
-        _isProcessingAttendance
-    ) { courses, attendanceScreenDatas, isLoading, isRefreshing, isProcessingAttendance ->
-        AttendanceUiState(
-            courseName = courses.find { it.courseCode == courseCode }?.courseName,
-            attendanceScreenDatas = attendanceScreenDatas,
-            isLoading = isLoading,
-            isRefreshing = isRefreshing,
-            isProcessingAttendance = isProcessingAttendance,
-            errorMessage = _errorMessage.value
+                    AttendanceScreenData(
+                        isAttended = isAttended,
+                        contentUrls = attendanceVmDataMap[meetingNumber] ?: emptyList(),
+                    )
+                }
+            },
+            _isLoading,
+            _isRefreshing,
+            _isProcessingAttendance,
+        ) { courses, attendanceScreenDatas, isLoading, isRefreshing, isProcessingAttendance ->
+            AttendanceUiState(
+                courseName = courses.find { it.courseCode == courseCode }?.courseName,
+                attendanceScreenDatas = attendanceScreenDatas,
+                isLoading = isLoading,
+                isRefreshing = isRefreshing,
+                isProcessingAttendance = isProcessingAttendance,
+                errorMessage = _errorMessage.value,
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = AttendanceUiState(),
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = AttendanceUiState()
-    )
 
     fun getAttendances(updateAction: UpdateAction = UpdateAction.LOADING) {
-        viewModelScope.launch {
-            when (updateAction) {
-                UpdateAction.REFRESH -> {
-                    _isRefreshing.value = true
-                    _errorMessage.value = null
-                }
-                UpdateAction.LOADING -> {
-                    _isLoading.value = true
-                    _errorMessage.value = null
-                }
+        when (updateAction) {
+            UpdateAction.REFRESH -> {
+                _isRefreshing.value = true
+                _errorMessage.value = null
             }
+            UpdateAction.LOADING -> {
+                _isLoading.value = true
+                _errorMessage.value = null
+            }
+        }
 
-            lmsRepository.syncAll().onFailure { e ->
-                e.message?.let {
-                    if (uiState.value.attendanceScreenDatas.isEmpty()) _errorMessage.value = it
-                    else _snackbarEvent.trySend(it)
+        viewModelScope.launch {
+            lmsRepository.syncAll().onFailure {
+                val mess = it.message ?: "Gagal memperbarui data"
+                if (uiState.value.attendanceScreenDatas.isEmpty()) {
+                    _errorMessage.value = mess
+                } else {
+                    _snackbarEvent.trySend(mess)
                 }
             }
 
@@ -95,16 +101,21 @@ class AttendanceViewModel(
         }
     }
 
-    fun processAttendance(url: String) {
+    fun processAttendance(urls: List<String>) {
         viewModelScope.launch {
             _isProcessingAttendance.value = true
 
-            lmsRepository.executeAttendance(url).onFailure { e ->
-                e.message?.let { _snackbarEvent.trySend(it) }
-            }
+            urls
+                .map { url ->
+                    async {
+                        lmsRepository.executeAttendance(url).onFailure {
+                            _snackbarEvent.trySend(it.message ?: "Gagal melakukan absensi")
+                        }
+                    }
+                }.awaitAll()
 
-            lmsRepository.syncAll().onFailure { e ->
-                e.message?.let { _snackbarEvent.trySend(it) }
+            lmsRepository.syncAll().onFailure {
+                _snackbarEvent.trySend(it.message ?: "Gagal memperbarui data")
             }
 
             _isProcessingAttendance.value = false

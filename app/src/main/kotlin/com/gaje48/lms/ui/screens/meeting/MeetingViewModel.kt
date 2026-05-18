@@ -16,34 +16,34 @@ data class MeetingUiState(
     val course: Course? = null,
     val meetings: List<Meeting> = emptyList(),
     val isRefreshing: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
 )
 
 class MeetingViewModel(
     private val courseCode: String,
-    private val lmsRepository: LmsRepository
+    private val lmsRepository: LmsRepository,
 ) : ViewModel() {
-
     private val _isRefreshing = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<MeetingUiState> = combine(
-        lmsRepository.courses,
-        lmsRepository.observeMeetings(courseCode),
-        _isRefreshing,
-        _errorMessage
-    ) { courses, meetings, isRefreshing, errorMessage ->
-        MeetingUiState(
-            course = courses.find { it.courseCode == courseCode },
-            meetings = meetings,
-            isRefreshing = isRefreshing,
-            errorMessage = errorMessage
+    val uiState: StateFlow<MeetingUiState> =
+        combine(
+            lmsRepository.courses,
+            lmsRepository.observeMeetings(courseCode),
+            _isRefreshing,
+            _errorMessage,
+        ) { courses, meetings, isRefreshing, errorMessage ->
+            MeetingUiState(
+                course = courses.find { it.courseCode == courseCode },
+                meetings = meetings,
+                isRefreshing = isRefreshing,
+                errorMessage = errorMessage,
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = MeetingUiState(),
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = MeetingUiState()
-    )
 
     fun refreshDashboard() {
         viewModelScope.launch {
@@ -52,8 +52,11 @@ class MeetingViewModel(
 
             lmsRepository.syncAll().onFailure { e ->
                 e.message?.let {
-                    if (uiState.value.meetings.isEmpty()) _errorMessage.value = it
-                    else _errorMessage.value = it
+                    if (uiState.value.meetings.isEmpty()) {
+                        _errorMessage.value = it
+                    } else {
+                        _errorMessage.value = it
+                    }
                 }
             }
             _isRefreshing.value = false
