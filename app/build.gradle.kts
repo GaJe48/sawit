@@ -83,4 +83,5 @@ dependencies {
             type = "aar"
         }
     }
+    implementation("rustls:rustls-platform-verifier:0.1.1@aar")
 }

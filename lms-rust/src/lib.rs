@@ -1,5 +1,20 @@
 uniffi::setup_scaffolding!();
 
+#[cfg(target_os = "android")]
+#[allow(non_snake_case)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_gaje48_lms_LmsApplication_initRustTls(
+    mut unowned_env: jni::EnvUnowned,
+    _class: jni::objects::JClass,
+    context: jni::objects::JObject,
+) {
+    let _ = unowned_env.with_env(|env| -> Result<(), jni::errors::Error> {
+        rustls_platform_verifier::android::init_with_env(env, context)
+            .expect("Fatal: Gagal menginisialisasi rustls-platform-verifier dari Kotlin");
+        Ok(())
+    });
+}
+
 use std::{collections::HashMap, sync::Arc};
 
 use std::os::unix::io::FromRawFd;
@@ -108,17 +123,7 @@ trait UploadCallback: Send + Sync {
 impl InternetDataSource {
     #[uniffi::constructor]
     fn new() -> Self {
-        let root_store =
-            rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        let tls_config = rustls::ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-
-        let web = Client::builder()
-            .use_preconfigured_tls(tls_config)
-            .cookie_store(true)
-            .build()
-            .unwrap();
+        let web = Client::builder().cookie_store(true).build().unwrap();
 
         Self { web }
     }
@@ -239,21 +244,18 @@ impl InternetDataSource {
             .unwrap();
     }
 
-    async fn execute_attendance(&self, file_url: String) -> Result<bool, LmsError> {
-        let response = self
-            .web
-            .get(&file_url)
-            .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+    async fn execute_attendances(&self, urls: Vec<String>) -> Vec<String> {
+        let futures = urls.into_iter().map(|url| async move {
+            let result = self.web.get(&url).send().await;
 
-        if response.status().is_success() {
-            Ok(true)
-        } else {
-            Err(LmsError::NetworkError {
-                msg: format!("Gagal absensi, status: {}", response.status()),
-            })
-        }
+            match result {
+                Ok(response) if response.status().is_success() => None,
+                Ok(response) => Some(format!("Gagal absensi, status: {}", response.status())),
+                Err(e) => Some(e.to_string()),
+            }
+        });
+
+        join_all(futures).await.into_iter().flatten().collect()
     }
 
     async fn download_file(

@@ -74,10 +74,11 @@ interface ContentDao {
 
     @Query(
         """
-        SELECT m.meetingNumber, c.contentUrl 
-        FROM meeting m 
-        INNER JOIN content c ON m.meetingUrl = c.meetingUrl 
-        WHERE m.courseCode = :courseCode AND c.contentUrl IS NOT NULL
+    SELECT m.meetingNumber, c.contentUrl 
+    FROM meeting m 
+    INNER JOIN content c ON m.meetingUrl = c.meetingUrl 
+    WHERE m.courseCode = :courseCode 
+    AND c.contentUrl LIKE 'https://lms.unindra.ac.id%'
     """,
     )
     fun observeAttendanceVmDatas(courseCode: String): Flow<List<AttendanceVmData>>

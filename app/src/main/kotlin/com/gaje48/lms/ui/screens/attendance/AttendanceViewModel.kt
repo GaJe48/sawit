@@ -5,8 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.model.AttendanceScreenData
 import com.gaje48.lms.model.UpdateAction
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -105,14 +103,15 @@ class AttendanceViewModel(
         viewModelScope.launch {
             _isProcessingAttendance.value = true
 
-            urls
-                .map { url ->
-                    async {
-                        lmsRepository.executeAttendance(url).onFailure {
-                            _snackbarEvent.trySend(it.message ?: "Gagal melakukan absensi")
-                        }
+            lmsRepository
+                .executeAttendances(urls)
+                .onSuccess { errors ->
+                    errors.forEach { errorMsg ->
+                        _snackbarEvent.trySend(errorMsg)
                     }
-                }.awaitAll()
+                }.onFailure {
+                    _snackbarEvent.trySend(it.message ?: "Gagal melakukan absensi")
+                }
 
             lmsRepository.syncAll().onFailure {
                 _snackbarEvent.trySend(it.message ?: "Gagal memperbarui data")

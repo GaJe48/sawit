@@ -14,10 +14,11 @@ import com.gaje48.lms.data.db.toEntity
 import com.gaje48.lms.model.AccountProblemException
 import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.SessionExpiredException
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 class LmsRepository(
     private val internetDataSource: uniffi.lms_rust.InternetDataSource,
@@ -110,7 +111,7 @@ class LmsRepository(
     suspend fun syncAll() = runCatching { withAutoReLogin { syncLmsApp() } }
 
     private suspend fun syncLmsApp() =
-        coroutineScope {
+        withContext(Dispatchers.IO) {
             val lmsEntity = internetDataSource.fetchAll()
 
             lmsDatabase.withTransaction {
@@ -123,9 +124,9 @@ class LmsRepository(
             }
         }
 
-    suspend fun executeAttendance(fileUrl: String) =
+    suspend fun executeAttendances(urls: List<String>) =
         runCatching {
-            withAutoReLogin { internetDataSource.executeAttendance(fileUrl) }
+            withAutoReLogin { internetDataSource.executeAttendances(urls) }
         }
 
     suspend fun downloadFile(

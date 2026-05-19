@@ -25,4 +25,6 @@
 
 -dontwarn com.sun.jna.**
 -keep class com.sun.jna.** { *; }
--keep class uniffi.** { *; }
+-keep class uniffi.lms_rust.** { *; }
+
+-keep class org.rustls.platformverifier.** { *; }
