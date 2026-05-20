@@ -96,6 +96,8 @@ class AssignmentViewModel(
                 .uploadTask(uri, taskUrl) { fileName, progress ->
                     notificationHelper.showUploadProgress(notifId, fileName, progress)
                 }.onSuccess { fileName ->
+                    notificationHelper.showUploadCompleting(notifId, fileName)
+
                     lmsRepository
                         .syncAll()
                         .onSuccess { notificationHelper.showUploadSuccess(notifId, fileName) }

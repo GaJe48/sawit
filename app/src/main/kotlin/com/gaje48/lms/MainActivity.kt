@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.gaje48.lms.navigation.LmsApp
 import com.gaje48.lms.ui.screens.login.LoginViewModel
+import com.gaje48.lms.ui.theme.LMSUnindraTheme
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {
@@ -18,6 +19,10 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
         splashScreen.setKeepOnScreenCondition { !viewModel.uiState.value.isSplashReady }
-        setContent { LmsApp(loginViewModel = viewModel) }
+        setContent {
+            LMSUnindraTheme {
+                LmsApp(loginViewModel = viewModel)
+            }
+        }
     }
 }

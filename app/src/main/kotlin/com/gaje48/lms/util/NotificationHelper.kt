@@ -53,7 +53,6 @@ class NotificationHelper(
             .setOngoing(true)
             .also {
                 notificationManager.notify(notifId, it.build())
-                updateGroupSummary()
             }
     }
 
@@ -77,7 +76,6 @@ class NotificationHelper(
             .setOnlyAlertOnce(true)
             .also {
                 notificationManager.notify(notifId, it.build())
-                updateGroupSummary()
             }
     }
 
@@ -121,7 +119,6 @@ class NotificationHelper(
             .setOngoing(true)
             .also {
                 notificationManager.notify(notifId, it.build())
-                updateGroupSummary()
             }
     }
 
@@ -145,7 +142,21 @@ class NotificationHelper(
             .setOnlyAlertOnce(true)
             .also {
                 notificationManager.notify(notifId, it.build())
-                updateGroupSummary()
+            }
+    }
+
+    fun showUploadCompleting(
+        notifId: Int,
+        fileName: String,
+    ) {
+        notifBuilder()
+            .setSmallIcon(android.R.drawable.stat_sys_upload)
+            .setContentTitle("Menyelesaikan proses upload...")
+            .setContentText(fileName)
+            .setProgress(0, 0, true)
+            .setOngoing(true)
+            .also {
+                notificationManager.notify(notifId, it.build())
             }
     }
 

@@ -32,7 +32,7 @@ class LmsRepository(
     private val assignmentDao: AssignmentDao,
     private val attendanceDao: AttendanceDao,
 ) {
-    val student = studentDao.observe().map { it.toDomain() }
+    val student = studentDao.observe().map { it?.toDomain() }
 
     val courses =
         courseDao.observeAll().map { entities ->

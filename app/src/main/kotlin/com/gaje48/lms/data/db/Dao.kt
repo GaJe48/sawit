@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface StudentDao {
     @Query("SELECT * FROM student")
-    fun observe(): Flow<StudentEntity>
+    fun observe(): Flow<StudentEntity?>
 
     @Upsert
     suspend fun save(student: StudentEntity)

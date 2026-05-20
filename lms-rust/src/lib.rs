@@ -943,21 +943,21 @@ impl InternetDataSource {
     }
 }
 
+static REC_MODEL: std::sync::LazyLock<ocr_rs::RecModel> = std::sync::LazyLock::new(|| {
+    let model_bytes = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/en_PP-OCRv5_mobile_rec_infer.mnn"
+    ));
+    let charset_bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/ppocr_keys_en.txt"));
+
+    ocr_rs::RecModel::from_bytes_with_charset(model_bytes, charset_bytes, None).unwrap()
+});
+
 async fn solve_captcha(bytes: bytes::Bytes) -> String {
     tokio::task::spawn_blocking(move || {
-        let model_bytes = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/en_PP-OCRv5_mobile_rec_infer.mnn"
-        ));
-        let charset_bytes =
-            include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/ppocr_keys_en.txt"));
-
-        let rec =
-            ocr_rs::RecModel::from_bytes_with_charset(model_bytes, charset_bytes, None).unwrap();
-
         let image = image::load_from_memory(&bytes).unwrap();
 
-        let raw_text = rec.recognize_text(&image).unwrap();
+        let raw_text = REC_MODEL.recognize_text(&image).unwrap();
 
         let (num1, raw_num2) = raw_text.split_once("+").unwrap();
 
