@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import com.gaje48.lms.R
 
 class NotificationHelper(
     private val context: Context,
@@ -29,20 +30,17 @@ class NotificationHelper(
             }
     private val lastNotifUpdate = mutableMapOf<Int, Long>()
 
-    private fun notifBuilder() =
-        Notification
-            .Builder(context, CHANNEL_ID)
-            .setGroup(GROUP_KEY)
+    private fun notifBuilder() = Notification.Builder(context, CHANNEL_ID)
 
     private fun updateGroupSummary() {
-        val summaryNotif =
-            Notification
-                .Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.stat_notify_sync)
-                .setGroup(GROUP_KEY)
-                .setGroupSummary(true)
-                .build()
-        notificationManager.notify(SUMMARY_ID, summaryNotif)
+        Notification
+            .Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.notification_icon)
+            .setGroup(GROUP_KEY)
+            .setGroupSummary(true)
+            .also {
+                notificationManager.notify(SUMMARY_ID, it.build())
+            }
     }
 
     fun showDownloadStarted(notifId: Int) {
@@ -89,6 +87,7 @@ class NotificationHelper(
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("Download Selesai!")
             .setContentText(fileName)
+            .setGroup(GROUP_KEY)
             .also {
                 notificationManager.notify(notifId, it.build())
                 updateGroupSummary()
@@ -105,6 +104,7 @@ class NotificationHelper(
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("Download Gagal")
             .setContentText(message)
+            .setGroup(GROUP_KEY)
             .also {
                 notificationManager.notify(notifId, it.build())
                 updateGroupSummary()
@@ -170,6 +170,7 @@ class NotificationHelper(
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
             .setContentTitle("Upload Selesai!")
             .setContentText(fileName)
+            .setGroup(GROUP_KEY)
             .also {
                 notificationManager.notify(notifId, it.build())
                 updateGroupSummary()
@@ -186,6 +187,7 @@ class NotificationHelper(
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("Upload Gagal")
             .setContentText(message)
+            .setGroup(GROUP_KEY)
             .also {
                 notificationManager.notify(notifId, it.build())
                 updateGroupSummary()

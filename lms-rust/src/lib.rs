@@ -176,8 +176,9 @@ impl InternetDataSource {
             .collect();
 
         for course in &mut courses {
-            if let Some(pic_url) = lecturer_map.get(&course.lecturer_name) {
-                course.lecturer_profile_picture_url = Some(pic_url.clone());
+            if course.lecturer_profile_picture_url.is_none() {
+                course.lecturer_profile_picture_url =
+                    lecturer_map.get(&course.lecturer_name).cloned();
             }
         }
 
