@@ -68,7 +68,3 @@ data class AssignmentScreenData(
     val isSubmitted: Boolean,
     val isOverdue: Boolean,
 )
-
-class SessionExpiredException : Exception()
-
-class AccountProblemException : Exception()

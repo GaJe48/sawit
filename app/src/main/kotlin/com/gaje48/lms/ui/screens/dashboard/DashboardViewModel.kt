@@ -2,6 +2,7 @@ package com.gaje48.lms.ui.screens.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gaje48.lms.data.AuthRepository
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
@@ -23,6 +24,7 @@ data class DashboardUiState(
 )
 
 class DashboardViewModel(
+    private val authRepository: AuthRepository,
     private val lmsRepository: LmsRepository,
 ) : ViewModel() {
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
@@ -71,6 +73,6 @@ class DashboardViewModel(
     }
 
     fun logout() {
-        viewModelScope.launch { lmsRepository.clearCredential() }
+        viewModelScope.launch { authRepository.clearCredential() }
     }
 }

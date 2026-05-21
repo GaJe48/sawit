@@ -28,6 +28,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.gaje48.lms.ui.MainViewModel
 import com.gaje48.lms.ui.screens.assignment.AssignmentScreen
 import com.gaje48.lms.ui.screens.assignment.AssignmentViewModel
 import com.gaje48.lms.ui.screens.attendance.AttendanceScreen
@@ -72,9 +73,9 @@ data class AttendanceNavKey(
 ) : NavKey
 
 @Composable
-fun LmsApp(loginViewModel: LoginViewModel) {
+fun LmsApp(mainViewModel: MainViewModel) {
     val backStack = rememberNavBackStack(LoginNavKey)
-    val isLoggedIn by loginViewModel.isLoggedIn.collectAsStateWithLifecycle()
+    val isLoggedIn by mainViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = false)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -85,8 +86,6 @@ fun LmsApp(loginViewModel: LoginViewModel) {
         ) {}
 
     LaunchedEffect(null) {
-        loginViewModel.checkLoginStatus()
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -115,6 +114,7 @@ fun LmsApp(loginViewModel: LoginViewModel) {
             entryProvider =
                 entryProvider {
                     entry<LoginNavKey> {
+                        val loginViewModel = koinViewModel<LoginViewModel>()
                         LoginScreen(loginViewModel)
                     }
 

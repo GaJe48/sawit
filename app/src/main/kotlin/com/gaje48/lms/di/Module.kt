@@ -1,10 +1,12 @@
 package com.gaje48.lms.di
 
 import androidx.room.Room
+import com.gaje48.lms.data.AuthRepository
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.data.LocalDataSource
 import com.gaje48.lms.data.StorageDataSource
 import com.gaje48.lms.data.db.LmsDatabase
+import com.gaje48.lms.ui.MainViewModel
 import com.gaje48.lms.ui.screens.assignment.AssignmentViewModel
 import com.gaje48.lms.ui.screens.attendance.AttendanceViewModel
 import com.gaje48.lms.ui.screens.content.ContentViewModel
@@ -37,7 +39,9 @@ val module =
         single { get<LmsDatabase>().meetingContentDao() }
         single { get<LmsDatabase>().assignmentDao() }
         single { get<LmsDatabase>().attendanceDao() }
+        singleOf(::AuthRepository)
         singleOf(::LmsRepository)
+        viewModelOf(::MainViewModel)
         viewModelOf(::LoginViewModel)
         viewModelOf(::DashboardViewModel)
         viewModelOf(::MeetingViewModel)

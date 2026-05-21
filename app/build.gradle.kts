@@ -85,3 +85,12 @@ dependencies {
     }
     implementation("rustls:rustls-platform-verifier:0.1.1@aar")
 }
+
+ktlint {
+    android.set(true)
+    ignoreFailures.set(true)
+}
+
+koinCompiler {
+    compileSafety = false
+}
