@@ -769,7 +769,7 @@ impl InternetDataSource {
         static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
         static CELL_CC: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("td:nth-child(2)").unwrap());
-        static CELLS_ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
+        static CELL_ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
 
         let attend_html = self
             .web
@@ -831,7 +831,7 @@ impl InternetDataSource {
                         let parser = Html::parse_document(&html);
 
                         let list = parser
-                            .select(&CELLS_ATTEND)
+                            .select(&CELL_ATTEND)
                             .enumerate()
                             .map(|(index, cell)| AttendanceEntity {
                                 course_code: course_code.clone(),
@@ -1162,17 +1162,17 @@ fn extract_file_url(container: ElementRef) -> Option<String> {
 fn format_title_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
 
-    for (i, word) in s.split_ascii_whitespace().enumerate() {
-        if i > 0 {
-            result.push(' ');
-        }
+    let mut capitalize_next = true;
 
-        let mut chars = word.chars();
-        if let Some(first_char) = chars.next() {
-            result.push(first_char.to_ascii_uppercase());
-            for c in chars {
-                result.push(c.to_ascii_lowercase());
-            }
+    for c in s.chars() {
+        if c.is_whitespace() {
+            capitalize_next = true;
+            result.push(c);
+        } else if capitalize_next {
+            result.push(c.to_ascii_uppercase());
+            capitalize_next = false;
+        } else {
+            result.push(c.to_ascii_lowercase());
         }
     }
 
