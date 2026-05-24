@@ -15,7 +15,10 @@ pub extern "system" fn Java_com_gaje48_lms_LmsApplication_initRustTls(
     });
 }
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock},
+};
 
 use std::os::unix::io::FromRawFd;
 use tokio::io::AsyncWriteExt;
@@ -211,9 +214,10 @@ impl InternetDataSource {
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
         let (t_csrf, random_name, random_value) = {
+            static INPUT_SEL: LazyLock<Selector> =
+                LazyLock::new(|| Selector::parse("input[type=hidden]").unwrap());
             let document = Html::parse_document(&html);
-            let input_sel = Selector::parse("input[type=hidden]").unwrap();
-            let mut inputs = document.select(&input_sel);
+            let mut inputs = document.select(&INPUT_SEL);
 
             let csrf_input = inputs.next().ok_or_else(|| LmsError::ParserError {
                 msg: "CSRF token hidden input field not found".into(),
@@ -399,13 +403,17 @@ impl InternetDataSource {
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
         let (id_tugas, h_kode, id_aktifitas) = {
+            static ID_TUGAS_SEL: LazyLock<Selector> =
+                LazyLock::new(|| Selector::parse("input[name=h_id_tugas]").unwrap());
+            static H_KODE_SEL: LazyLock<Selector> =
+                LazyLock::new(|| Selector::parse("input[name=h_kode]").unwrap());
+            static ID_AKTIFITAS_SEL: LazyLock<Selector> =
+                LazyLock::new(|| Selector::parse("input[name=h_id_aktifitas]").unwrap());
+
             let document = Html::parse_document(&html_form);
-            let id_tugas_sel = Selector::parse("input[name=h_id_tugas]").unwrap();
-            let h_kode_sel = Selector::parse("input[name=h_kode]").unwrap();
-            let id_aktifitas_sel = Selector::parse("input[name=h_id_aktifitas]").unwrap();
 
             let id_tugas = document
-                .select(&id_tugas_sel)
+                .select(&ID_TUGAS_SEL)
                 .next()
                 .and_then(|el| el.attr("value"))
                 .ok_or(LmsError::NetworkError {
@@ -414,7 +422,7 @@ impl InternetDataSource {
                 .to_string();
 
             let h_kode = document
-                .select(&h_kode_sel)
+                .select(&H_KODE_SEL)
                 .next()
                 .and_then(|el| el.attr("value"))
                 .ok_or(LmsError::NetworkError {
@@ -423,7 +431,7 @@ impl InternetDataSource {
                 .to_string();
 
             let id_aktifitas = document
-                .select(&id_aktifitas_sel)
+                .select(&ID_AKTIFITAS_SEL)
                 .next()
                 .and_then(|el| el.attr("value"))
                 .ok_or(LmsError::NetworkError {
@@ -500,15 +508,20 @@ impl InternetDataSource {
     fn parse_student(dashboard_html: &Html) -> Result<Student, LmsError> {
         let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
-        let name_selector = Selector::parse("div.pull-left.info p").unwrap();
-        let npm_selector = Selector::parse("li.user-body strong").unwrap();
-        let program_selector = Selector::parse("span.Badge-info").unwrap();
-        let class_selector = Selector::parse("span.pull-right.text-bold.badge").unwrap();
-        let toggle_sel = Selector::parse("li.user-menu a.dropdown-toggle").unwrap();
-        let img_sel = Selector::parse("img").unwrap();
+        static NAME_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.pull-left.info p").unwrap());
+        static NPM_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("li.user-body strong").unwrap());
+        static PROGRAM_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("span.Badge-info").unwrap());
+        static CLASS_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("span.pull-right.text-bold.badge").unwrap());
+        static TOGGLE_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("li.user-menu a.dropdown-toggle").unwrap());
+        static IMG_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
 
         let raw_name = dashboard_html
-            .select(&name_selector)
+            .select(&NAME_SEL)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -518,7 +531,7 @@ impl InternetDataSource {
         let name = format_title_case(raw_name);
 
         let npm = dashboard_html
-            .select(&npm_selector)
+            .select(&NPM_SEL)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -527,7 +540,7 @@ impl InternetDataSource {
             .to_string();
 
         let study_program = dashboard_html
-            .select(&program_selector)
+            .select(&PROGRAM_SEL)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -537,7 +550,7 @@ impl InternetDataSource {
             .to_string();
 
         let class_name = dashboard_html
-            .select(&class_selector)
+            .select(&CLASS_SEL)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -546,7 +559,7 @@ impl InternetDataSource {
             .to_string();
 
         let wrap = dashboard_html
-            .select(&toggle_sel)
+            .select(&TOGGLE_SEL)
             .next()
             .ok_or_else(|| LmsError::ParserError {
                 msg: "Student user menu toggle not found".into(),
@@ -558,7 +571,7 @@ impl InternetDataSource {
         let frag = Html::parse_fragment(&wrap);
 
         let profile_picture_url = frag
-            .select(&img_sel)
+            .select(&IMG_SEL)
             .nth(1)
             .and_then(|el| el.attr("src"))
             .filter(|url| !url.contains(base64_no_pic_z))
@@ -577,16 +590,21 @@ impl InternetDataSource {
         let base64_no_pic = "UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
         let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
-        let widget_sel = Selector::parse("div.box-widget").unwrap();
-        let lecturer_sel = Selector::parse("h3.widget-user-username").unwrap();
-        let header_sel = Selector::parse("span.header_badeg").unwrap();
-        let green_sel = Selector::parse("span.text-green").unwrap();
-        let desc_sel = Selector::parse("h5.widget-user-desc").unwrap();
-        let img_sel = Selector::parse("img").unwrap();
+        static WIDGET_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.box-widget").unwrap());
+        static LECTURER_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("h3.widget-user-username").unwrap());
+        static HEADER_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("span.header_badeg").unwrap());
+        static GREEN_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("span.text-green").unwrap());
+        static DESC_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("h5.widget-user-desc").unwrap());
+        static IMG_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
 
-        dashboard_html.select(&widget_sel).map(|el| {
+        dashboard_html.select(&WIDGET_SEL).map(|el| {
                 let raw_lecturer = el
-                    .select(&lecturer_sel)
+                    .select(&LECTURER_SEL)
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
@@ -596,7 +614,7 @@ impl InternetDataSource {
                 let lecturer_name = format_title_case(raw_lecturer);
 
                 let header_text = el
-                    .select(&header_sel)
+                    .select(&HEADER_SEL)
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
@@ -625,7 +643,7 @@ impl InternetDataSource {
                 };
 
                 let green_text = el
-                    .select(&green_sel)
+                    .select(&GREEN_SEL)
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
@@ -671,7 +689,7 @@ impl InternetDataSource {
                 let clock = clock_raw.to_string();
 
                 let lecturer_phone_number = el
-                    .select(&desc_sel)
+                    .select(&DESC_SEL)
                     .next()
                     .and_then(|el| el.text().next()?.split_once(" : "))
                     .map(|(_, hp)| hp)
@@ -679,7 +697,7 @@ impl InternetDataSource {
                     .map(String::from);
 
                 let lecturer_profile_picture_url = el
-                    .select(&img_sel)
+                    .select(&IMG_SEL)
                     .next()
                     .and_then(|img| img.attr("src"))
                     .filter(|url| !url.ends_with(base64_no_pic) && !url.contains(base64_no_pic_z))
@@ -699,26 +717,29 @@ impl InternetDataSource {
     }
 
     fn parse_meetings(dashboard_html: &Html) -> Result<Vec<MeetingEntity>, LmsError> {
-        let tree_sel = Selector::parse("ul.treeview-menu").unwrap();
-        let widget_sel = Selector::parse("div.box-widget").unwrap();
-        let a_sel = Selector::parse("ul li a").unwrap();
-        let badge_sel = Selector::parse("span.header_badeg").unwrap();
+        static TREE_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("ul.treeview-menu").unwrap());
+        static WIDGET_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.box-widget").unwrap());
+        static A_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("ul li a").unwrap());
+        static BADGE_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("span.header_badeg").unwrap());
 
-        let treeviews = dashboard_html.select(&tree_sel);
-        let widgets = dashboard_html.select(&widget_sel);
+        let treeviews = dashboard_html.select(&TREE_SEL);
+        let widgets = dashboard_html.select(&WIDGET_SEL);
 
         let mut meetings = Vec::new();
 
         for (tree, widget) in treeviews.zip(widgets) {
             let course_code = widget
-                .select(&badge_sel)
+                .select(&BADGE_SEL)
                 .next()
                 .and_then(|el| el.text().next()?.split_once(" -"))
                 .ok_or_else(|| LmsError::ParserError { msg: "Failed to parse course code from badge text (expected format '<course_code> - <course_name>')".to_string() })?
                 .0
                 .to_string();
 
-            for a_tag in tree.select(&a_sel) {
+            for a_tag in tree.select(&A_SEL) {
                 let url = a_tag
                     .attr("href")
                     .ok_or_else(|| LmsError::ParserError {
@@ -753,19 +774,22 @@ impl InternetDataSource {
             .await
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-        let click_sel = Selector::parse("td[onclick*=absensi_mhs]").unwrap();
-        let td_sel = Selector::parse("td").unwrap();
-        let row_sel = Selector::parse("table.table-bordered tbody tr").unwrap();
-
-        let row_attend_sel =
-            Arc::new(Selector::parse("table.table-bordered tbody tr td.text-center").unwrap());
-        let attended_sel = Arc::new(Selector::parse("i.fa-calendar-check-o").unwrap());
+        static CLICK_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("td[onclick*=absensi_mhs]").unwrap());
+        static TD_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("td").unwrap());
+        static ROW_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("table.table-bordered tbody tr").unwrap());
+        static ROW_ATTEND_SEL: LazyLock<Selector> = LazyLock::new(|| {
+            Selector::parse("table.table-bordered tbody tr td.text-center").unwrap()
+        });
+        static ATTENDED_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("i.fa-calendar-check-o").unwrap());
 
         let row_params = {
             let document = Html::parse_document(&presence_html);
 
             let Some(nim_id) = document
-                .select(&click_sel)
+                .select(&CLICK_SEL)
                 .next()
                 .and_then(|el| el.attr("onclick")?.split('\'').nth(3))
                 .map(String::from)
@@ -774,9 +798,9 @@ impl InternetDataSource {
             };
 
             document
-                .select(&row_sel)
+                .select(&ROW_SEL)
                 .map(|row| {
-                    let mut cols = row.select(&td_sel);
+                    let mut cols = row.select(&TD_SEL);
 
                     let course_code = cols
                         .nth(1)
@@ -803,35 +827,30 @@ impl InternetDataSource {
         let client = &self.web;
 
         let results = try_join_all(row_params.into_iter().map(
-            |(nim_id, course_code, kode_jadwal_id)| {
-                let row_attend_clone = Arc::clone(&row_attend_sel);
-                let attended_sel = Arc::clone(&attended_sel);
+            |(nim_id, course_code, kode_jadwal_id)| async move {
+                let html = client
+                    .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
+                    .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
+                    .send()
+                    .await
+                    .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+                    .text()
+                    .await
+                    .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-                async move {
-                    let html = client
-                        .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
-                        .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
-                        .send()
-                        .await
-                        .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
-                        .text()
-                        .await
-                        .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+                let doc = Html::parse_document(&html);
 
-                    let doc = Html::parse_document(&html);
+                let list = doc
+                    .select(&ROW_ATTEND_SEL)
+                    .enumerate()
+                    .map(|(index, col)| AttendanceEntity {
+                        course_code: course_code.clone(),
+                        index: index as i8 + 1,
+                        is_attended: col.select(&ATTENDED_SEL).next().is_some(),
+                    })
+                    .collect::<Vec<_>>();
 
-                    let list = doc
-                        .select(&*row_attend_clone)
-                        .enumerate()
-                        .map(|(index, col)| AttendanceEntity {
-                            course_code: course_code.clone(),
-                            index: index as i8 + 1,
-                            is_attended: col.select(&attended_sel).next().is_some(),
-                        })
-                        .collect::<Vec<_>>();
-
-                    Ok(list)
-                }
+                Ok(list)
             },
         ))
         .await?;
@@ -851,16 +870,19 @@ impl InternetDataSource {
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
         let futures = {
+            static ROW_SEL: LazyLock<Selector> =
+                LazyLock::new(|| Selector::parse("tbody tr").unwrap());
+            static DIV_SEL: LazyLock<Selector> =
+                LazyLock::new(|| Selector::parse("div.col-md-4").unwrap());
+            static ICON_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("a i").unwrap());
+            static A_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("a").unwrap());
+
             let document = Html::parse_document(&html);
-            let row_sel = Selector::parse("tbody tr").unwrap();
-            let div_sel = Selector::parse("div.col-md-4").unwrap();
-            let icon_sel = Selector::parse("a i").unwrap();
-            let a_sel = Selector::parse("a").unwrap();
 
             document
-                .select(&row_sel)
+                .select(&ROW_SEL)
                 .map(|row| {
-                    let mut divs = row.select(&div_sel);
+                    let mut divs = row.select(&DIV_SEL);
 
                     let div1 = divs.next().ok_or_else(|| LmsError::ParserError {
                         msg: "First column ('div.col-md-4') not found in meeting content row"
@@ -869,7 +891,7 @@ impl InternetDataSource {
 
                     let div2 = divs.next();
 
-                    let mut a_tags = div1.select(&a_sel);
+                    let mut a_tags = div1.select(&A_SEL);
 
                     let a_first = a_tags.next();
                     let a_second = a_tags.next();
@@ -885,7 +907,7 @@ impl InternetDataSource {
                         .to_string();
 
                     let content_type = div1
-                        .select(&icon_sel)
+                        .select(&ICON_SEL)
                         .next()
                         .and_then(|el| {
                             el.attr("class")?
@@ -971,26 +993,32 @@ impl InternetDataSource {
 
         let document = Html::parse_document(&html);
 
-        let msg_sel = Selector::parse("div[style*=padding-left]").unwrap();
-        let default_sel = Selector::parse("div.callout-white-default").unwrap();
-        let warning_sel = Selector::parse("div.callout-white-warning").unwrap();
-        let deadline_sel = Selector::parse("div.callout-white-default table tr td").unwrap();
-        let user_block_sel = Selector::parse("div.user-block").unwrap();
-        let name_sel = Selector::parse("span").unwrap();
-        let image_sel = Selector::parse("img").unwrap();
+        static MSG_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div[style*=padding-left]").unwrap());
+        static DEFAULT_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default").unwrap());
+        static WARNING_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-warning").unwrap());
+        static DEADLINE_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default table tr td").unwrap());
+        static USER_BLOCK_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.user-block").unwrap());
+        static NAME_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("span").unwrap());
+        static IMAGE_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
 
         let message = document
-            .select(&msg_sel)
+            .select(&MSG_SEL)
             .next()
-            .and_then(|element| element.text().next()).map(String::from);
+            .and_then(|element| element.text().next())
+            .map(String::from);
 
         let assign_file_url = document
-            .select(&default_sel)
+            .select(&DEFAULT_SEL)
             .next()
             .and_then(|el| extract_file_url(el));
 
         let deadline = document
-            .select(&deadline_sel)
+            .select(&DEADLINE_SEL)
             .nth(2)
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -999,7 +1027,7 @@ impl InternetDataSource {
             .to_string();
 
         let view_submit_file_url = document
-            .select(&warning_sel)
+            .select(&WARNING_SEL)
             .next()
             .and_then(|el| extract_file_url(el));
 
@@ -1007,11 +1035,11 @@ impl InternetDataSource {
         let is_expired = html.contains("Waktu Submit sudah berakhir");
 
         let lecturer_opt = document
-            .select(&user_block_sel)
+            .select(&USER_BLOCK_SEL)
             .next()
             .and_then(|user_block| {
                 let name = user_block
-                    .select(&name_sel)
+                    .select(&NAME_SEL)
                     .next()?
                     .text()
                     .next()?
@@ -1020,7 +1048,7 @@ impl InternetDataSource {
                     .to_string();
 
                 let profile_picture_url = user_block
-                    .select(&image_sel)
+                    .select(&IMAGE_SEL)
                     .next()?
                     .attr("src")?
                     .to_string();
@@ -1094,12 +1122,15 @@ async fn solve_captcha(bytes: bytes::Bytes) -> Result<String, LmsError> {
 }
 
 fn extract_file_url(container: ElementRef) -> Option<String> {
-    let pdf_sel = Selector::parse("a[onclick*=lihat_pdf]").unwrap();
-    let pict_sel = Selector::parse("a[onclick*=lihat_gambar]").unwrap();
-    let other_sel = Selector::parse("a[href*=force_download]").unwrap();
+    static PDF_SEL: LazyLock<Selector> =
+        LazyLock::new(|| Selector::parse("a[onclick*=lihat_pdf]").unwrap());
+    static PICT_SEL: LazyLock<Selector> =
+        LazyLock::new(|| Selector::parse("a[onclick*=lihat_gambar]").unwrap());
+    static OTHER_SEL: LazyLock<Selector> =
+        LazyLock::new(|| Selector::parse("a[href*=force_download]").unwrap());
 
     // Cek PDF
-    if let Some(id) = container.select(&pdf_sel).next().and_then(|a| {
+    if let Some(id) = container.select(&PDF_SEL).next().and_then(|a| {
         let onclick = a.attr("onclick")?;
         onclick.split('\'').nth(1)
     }) {
@@ -1110,7 +1141,7 @@ fn extract_file_url(container: ElementRef) -> Option<String> {
     }
 
     // Cek Gambar
-    if let Some(id) = container.select(&pict_sel).next().and_then(|a| {
+    if let Some(id) = container.select(&PICT_SEL).next().and_then(|a| {
         let onclick = a.attr("onclick")?;
         onclick.split('\'').nth(1)
     }) {
@@ -1122,7 +1153,7 @@ fn extract_file_url(container: ElementRef) -> Option<String> {
 
     // Cek Lainnya
     if let Some(href) = container
-        .select(&other_sel)
+        .select(&OTHER_SEL)
         .next()
         .and_then(|a| a.attr("href"))
     {
