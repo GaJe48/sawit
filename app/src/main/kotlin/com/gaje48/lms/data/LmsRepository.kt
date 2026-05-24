@@ -69,11 +69,14 @@ class LmsRepository(
         }
     }
 
-    suspend fun syncAll() = runCatching {
-        runAuthenticated {
-            syncLmsApp()
+    suspend fun firstLogin() = runCatching { syncLmsApp() }
+
+    suspend fun syncAll() =
+        runCatching {
+            runAuthenticated {
+                syncLmsApp()
+            }
         }
-    }
 
     private suspend fun syncLmsApp() =
         withContext(Dispatchers.IO) {

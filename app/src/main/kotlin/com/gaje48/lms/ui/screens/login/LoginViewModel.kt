@@ -40,7 +40,7 @@ class LoginViewModel(
                 .login(nim, pwd)
                 .onSuccess {
                     lmsRepository
-                        .syncAll()
+                        .firstLogin()
                         .onSuccess {
                             authRepository.saveCredentials(nim, pwd)
                             _uiState.update { it.copy(isLoading = false, errorMessage = null) }
@@ -48,11 +48,12 @@ class LoginViewModel(
                             setError(it.message ?: "Gagal memuat data akademik")
                         }
                 }.onFailure { exception ->
-                    val friendlyMessage = when (exception) {
-                        is uniffi.lms_rust.LmsException.CredentialException -> "NIM atau Password salah"
-                        is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah"
-                        else -> exception.message ?: "Terjadi kesalahan saat login"
-                    }
+                    val friendlyMessage =
+                        when (exception) {
+                            is uniffi.lms_rust.LmsException.CredentialException -> "NIM atau Password salah"
+                            is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah"
+                            else -> exception.message ?: "Terjadi kesalahan saat login"
+                        }
                     setError(friendlyMessage)
                 }
         }
