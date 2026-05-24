@@ -855,6 +855,12 @@ impl InternetDataSource {
     }
 
     async fn fetch_contents(&self, meeting_url: &str) -> Result<Vec<ContentEntity>, LmsError> {
+        static ROW: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("tr div:nth-child(1)").unwrap());
+        static LINK: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("a:nth-child(2)").unwrap());
+        static ICON: LazyLock<Selector> = LazyLock::new(|| Selector::parse("i").unwrap());
+
         let html = self
             .web
             .get(meeting_url)
@@ -866,84 +872,60 @@ impl InternetDataSource {
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
         let futures = {
-            static ROW_SEL: LazyLock<Selector> =
-                LazyLock::new(|| Selector::parse("tbody tr").unwrap());
-            static DIV_SEL: LazyLock<Selector> =
-                LazyLock::new(|| Selector::parse("div.col-md-4").unwrap());
-            static ICON_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("a i").unwrap());
-            static A_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("a").unwrap());
-
             let document = Html::parse_document(&html);
 
             document
-                .select(&ROW_SEL)
+                .select(&ROW)
                 .map(|row| {
-                    let mut divs = row.select(&DIV_SEL);
+                    let a_tag = row
+                        .select(&LINK)
+                        .next()
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Link element ('a' tag) not found in row".into(),
+                        })?;
 
-                    let div1 = divs.next().ok_or_else(|| LmsError::ParserError {
-                        msg: "First column ('div.col-md-4') not found in meeting content row"
-                            .into(),
-                    })?;
-
-                    let div2 = divs.next();
-
-                    let mut a_tags = div1.select(&A_SEL);
-
-                    let a_first = a_tags.next();
-                    let a_second = a_tags.next();
-
-                    let link = a_second
-                        .and_then(|el| el.attr("href"))
+                    let link = a_tag
+                        .attr("href")
                         .filter(|href| href.starts_with("http"))
-                        .or_else(|| a_first.and_then(|el| el.attr("onclick")?.split('\'').nth(1)))
+                        .or_else(|| {
+                            a_tag
+                                .attr("onclick")
+                                .and_then(|attr| attr.split('\'').nth(1))
+                        })
                         .ok_or_else(|| LmsError::ParserError {
                             msg: "No valid link found (missing 'http' in href and no 'onclick')"
                                 .into(),
                         })?
                         .to_string();
 
-                    let content_type = div1
-                        .select(&ICON_SEL)
+                    let content_type = row
+                        .select(&ICON)
                         .next()
-                        .and_then(|el| {
-                            el.attr("class")?
-                                .split_whitespace()
-                                .find(|c| c.starts_with("fa-"))
-                        })
-                        .unwrap_or(
+                        .and_then(|el| el.value().classes().find(|c| c.starts_with("fa-")))
+                        .unwrap_or_else(|| {
                             if link.starts_with("https://lms.unindra.ac.id/member_tugas") {
                                 "fa-suitcase"
                             } else {
                                 "fa-pdf"
-                            },
-                        )
+                            }
+                        })
                         .to_string();
 
-                    let title = match div2
-                        .and_then(|d| d.text().next())
-                        .map(str::trim)
-                        .filter(|s| !s.is_empty())
-                    {
-                        Some(text) => text
-                            .rsplit_once('.')
-                            .map_or(text, |(before_dot, _)| before_dot)
-                            .to_string(),
-
-                        None => div1
-                            .text()
-                            .nth(5)
-                            .ok_or_else(|| LmsError::ParserError {
-                                msg: "Failed to parse content title".into(),
-                            })?
-                            .trim()
-                            .to_string(),
-                    };
+                    let title = row
+                        .text()
+                        .nth(5)
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Failed to parse content title".into(),
+                        })?
+                        .trim()
+                        .to_string();
 
                     let client = &self.web;
                     let meeting_url_str = meeting_url.to_string();
 
                     Ok(async move {
-                        let real_link = if link.contains("member_url") {
+                        let real_link = if link.starts_with("https://lms.unindra.ac.id/member_url")
+                        {
                             client
                                 .get(&link)
                                 .send()
