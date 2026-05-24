@@ -764,7 +764,14 @@ impl InternetDataSource {
     }
 
     async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
-        let presence_html = self
+        static CLICK: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("td[onclick^=absensi]").unwrap());
+        static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
+        static CELL_CC: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("td:nth-child(2)").unwrap());
+        static CELLS_ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
+
+        let attend_html = self
             .web
             .get("https://lms.unindra.ac.id/presensi")
             .send()
@@ -774,36 +781,23 @@ impl InternetDataSource {
             .await
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-        static CLICK_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("td[onclick*=absensi_mhs]").unwrap());
-        static TD_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("td").unwrap());
-        static ROW_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("table.table-bordered tbody tr").unwrap());
-        static ROW_ATTEND_SEL: LazyLock<Selector> = LazyLock::new(|| {
-            Selector::parse("table.table-bordered tbody tr td.text-center").unwrap()
-        });
-        static ATTENDED_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("i.fa-calendar-check-o").unwrap());
+        let futures = {
+            let attend_parser = Html::parse_document(&attend_html);
 
-        let row_params = {
-            let document = Html::parse_document(&presence_html);
-
-            let Some(nim_id) = document
-                .select(&CLICK_SEL)
+            let Some(nim_id) = attend_parser
+                .select(&CLICK)
                 .next()
                 .and_then(|el| el.attr("onclick")?.split('\'').nth(3))
-                .map(String::from)
             else {
                 return Ok(Vec::new());
             };
 
-            document
-                .select(&ROW_SEL)
+            attend_parser
+                .select(&ROW)
                 .map(|row| {
-                    let mut cols = row.select(&TD_SEL);
-
-                    let course_code = cols
-                        .nth(1)
+                    let course_code = row
+                        .select(&CELL_CC)
+                        .next()
                         .and_then(|el| el.text().next())
                         .ok_or_else(|| LmsError::ParserError {
                             msg: "Gagal memparsing kode mata kuliah".to_string(),
@@ -811,7 +805,8 @@ impl InternetDataSource {
                         .trim()
                         .to_string();
 
-                    let kode_jadwal_id = cols
+                    let kode_jadwal_id = row
+                        .select(&CLICK)
                         .next()
                         .and_then(|el| el.attr("onclick")?.split('\'').nth(1))
                         .ok_or_else(|| LmsError::ParserError {
@@ -819,41 +814,42 @@ impl InternetDataSource {
                         })?
                         .to_string();
 
-                    Ok((nim_id.clone(), course_code, kode_jadwal_id))
-                })
-                .collect::<Result<Vec<_>, LmsError>>()
-        }?;
+                    let client = &self.web;
+                    let nim = nim_id.to_string();
 
-        let client = &self.web;
+                    Ok(async move {
+                        let html = client
+                            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
+                            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim)])
+                            .send()
+                            .await
+                            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+                            .text()
+                            .await
+                            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-        let results = try_join_all(row_params.into_iter().map(
-            |(nim_id, course_code, kode_jadwal_id)| async move {
-                let html = client
-                    .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
-                    .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
-                    .send()
-                    .await
-                    .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
-                    .text()
-                    .await
-                    .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+                        let parser = Html::parse_document(&html);
 
-                let doc = Html::parse_document(&html);
+                        let list = parser
+                            .select(&CELLS_ATTEND)
+                            .enumerate()
+                            .map(|(index, cell)| AttendanceEntity {
+                                course_code: course_code.clone(),
+                                index: index as i8 + 1,
+                                is_attended: cell
+                                    .value()
+                                    .classes()
+                                    .any(|c| c == "fa-calendar-check-o"),
+                            })
+                            .collect::<Vec<_>>();
 
-                let list = doc
-                    .select(&ROW_ATTEND_SEL)
-                    .enumerate()
-                    .map(|(index, col)| AttendanceEntity {
-                        course_code: course_code.clone(),
-                        index: index as i8 + 1,
-                        is_attended: col.select(&ATTENDED_SEL).next().is_some(),
+                        Ok::<Vec<AttendanceEntity>, LmsError>(list)
                     })
-                    .collect::<Vec<_>>();
+                })
+                .collect::<Result<Vec<_>, LmsError>>()?
+        };
 
-                Ok(list)
-            },
-        ))
-        .await?;
+        let results = try_join_all(futures).await?;
 
         Ok(results.into_iter().flatten().collect())
     }
