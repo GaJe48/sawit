@@ -26,6 +26,10 @@ class AuthRepository(
         pwd: String,
     ) = runCatching {
         internetDataSource.cookieRenewed(nim, pwd)
+    }.onFailure { exception ->
+        if (exception is uniffi.lms_rust.LmsException.CredentialException) {
+            clearCredential()
+        }
     }
 
     suspend fun login(

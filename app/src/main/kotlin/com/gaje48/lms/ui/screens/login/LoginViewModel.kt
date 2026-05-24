@@ -47,7 +47,14 @@ class LoginViewModel(
                         }.onFailure {
                             setError(it.message ?: "Gagal memuat data akademik")
                         }
-                }.onFailure { setError(it.message ?: "NIM atau Password salah") }
+                }.onFailure { exception ->
+                    val friendlyMessage = when (exception) {
+                        is uniffi.lms_rust.LmsException.CredentialException -> "NIM atau Password salah"
+                        is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah"
+                        else -> exception.message ?: "Terjadi kesalahan saat login"
+                    }
+                    setError(friendlyMessage)
+                }
         }
     }
 }

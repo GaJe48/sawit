@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class LmsRepository(
+    private val authRepository: AuthRepository,
     private val internetDataSource: uniffi.lms_rust.InternetDataSource,
     private val storageDataSource: StorageDataSource,
     private val lmsDatabase: LmsDatabase,
@@ -57,7 +58,22 @@ class LmsRepository(
 
     fun observeAssignmentScreenDatas(courseCode: String) = assignmentDao.observeAssignmentScreenDatas(courseCode)
 
-    suspend fun syncAll() = runCatching { syncLmsApp() }
+    private suspend fun <T> runAuthenticated(block: suspend () -> T): T {
+        val credentials = authRepository.savedCredential() ?: throw uniffi.lms_rust.LmsException.CredentialException()
+        try {
+            internetDataSource.cookieRenewed(credentials.first, credentials.second)
+            return block()
+        } catch (e: uniffi.lms_rust.LmsException.CredentialException) {
+            authRepository.clearCredential()
+            throw e
+        }
+    }
+
+    suspend fun syncAll() = runCatching {
+        runAuthenticated {
+            syncLmsApp()
+        }
+    }
 
     private suspend fun syncLmsApp() =
         withContext(Dispatchers.IO) {
@@ -75,7 +91,9 @@ class LmsRepository(
 
     suspend fun executeAttendances(urls: List<String>) =
         runCatching {
-            internetDataSource.executeAttendances(urls)
+            runAuthenticated {
+                internetDataSource.executeAttendances(urls)
+            }
         }
 
     suspend fun downloadFile(
@@ -83,20 +101,22 @@ class LmsRepository(
         rawFileName: String,
         onProgress: (fileName: String, progress: Float) -> Unit,
     ) = runCatching {
-        internetDataSource.downloadFile(
-            fileUrl,
-            rawFileName,
-            object : uniffi.lms_rust.DownloadCallback {
-                override suspend fun onStart(fileName: String) = storageDataSource.createDownloadFd(fileName)
+        runAuthenticated {
+            internetDataSource.downloadFile(
+                fileUrl,
+                rawFileName,
+                object : uniffi.lms_rust.DownloadCallback {
+                    override suspend fun onStart(fileName: String) = storageDataSource.createDownloadFd(fileName)
 
-                override fun onProgress(
-                    fileName: String,
-                    progress: Float,
-                ) {
-                    onProgress(fileName, progress)
-                }
-            },
-        )
+                    override fun onProgress(
+                        fileName: String,
+                        progress: Float,
+                    ) {
+                        onProgress(fileName, progress)
+                    }
+                },
+            )
+        }
     }
 
     suspend fun uploadTask(
@@ -107,19 +127,21 @@ class LmsRepository(
         val (fileName, fileSize, fd) = storageDataSource.openFileForUpload(uri)
         if (fileSize > 20 * 1024 * 1024) error("Ukuran berkas melebihi 20MB")
 
-        internetDataSource.uploadSubmission(
-            taskUrl,
-            fileName,
-            fileSize.toULong(),
-            fd,
-            object : uniffi.lms_rust.UploadCallback {
-                override fun onProgress(
-                    fileName: String,
-                    progress: Float,
-                ) {
-                    onProgress(fileName, progress)
-                }
-            },
-        )
+        runAuthenticated {
+            internetDataSource.uploadSubmission(
+                taskUrl,
+                fileName,
+                fileSize.toULong(),
+                fd,
+                object : uniffi.lms_rust.UploadCallback {
+                    override fun onProgress(
+                        fileName: String,
+                        progress: Float,
+                    ) {
+                        onProgress(fileName, progress)
+                    }
+                },
+            )
+        }
     }
 }

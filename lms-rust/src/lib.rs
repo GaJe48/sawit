@@ -20,7 +20,7 @@ use std::{collections::HashMap, sync::Arc};
 use std::os::unix::io::FromRawFd;
 use tokio::io::AsyncWriteExt;
 
-use futures::{StreamExt, future::join_all};
+use futures::{StreamExt, future::try_join_all};
 use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
 
@@ -105,6 +105,12 @@ enum LmsError {
     StorageError { msg: String },
     #[error("Network error: {msg}")]
     NetworkError { msg: String },
+    #[error("Credential error: Username atau password salah")]
+    CredentialError,
+    #[error("Captcha error: Jawaban Captcha Salah")]
+    CaptchaError,
+    #[error("Parser error: {msg}")]
+    ParserError { msg: String },
 }
 
 #[uniffi::export(callback_interface)]
@@ -128,46 +134,47 @@ impl InternetDataSource {
         Self { web }
     }
 
-    async fn fetch_all(&self) -> LmsEntity {
+    async fn fetch_all(&self) -> Result<LmsEntity, LmsError> {
         let dashboard_html_future = async {
             self.web
                 .get("https://lms.unindra.ac.id/member")
                 .send()
                 .await
-                .unwrap()
+                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
                 .text()
                 .await
-                .unwrap()
+                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })
         };
 
         let attendances_future = self.fetch_attendances();
 
-        let (dashboard_raw, attendances) = tokio::join!(dashboard_html_future, attendances_future);
+        let (dashboard_raw_res, attendances_res) =
+            tokio::join!(dashboard_html_future, attendances_future);
+        let dashboard_raw = dashboard_raw_res?;
+        let attendances = attendances_res?;
 
-        let (student, mut courses, meetings) = Self::scrape_dashboard(&dashboard_raw);
+        let (student, mut courses, meetings) = Self::scrape_dashboard(&dashboard_raw)?;
 
-        let mut content_futures = Vec::new();
+        let content_results = try_join_all(
+            meetings
+                .iter()
+                .map(|meeting| self.fetch_contents(&meeting.url)),
+        )
+        .await?;
 
-        for meeting in &meetings {
-            let future = self.fetch_contents(&meeting.url);
-            content_futures.push(future);
-        }
+        let all_contents: Vec<ContentEntity> = content_results.into_iter().flatten().collect();
 
-        let (suitcase_contents, regular_contents): (Vec<_>, Vec<_>) = join_all(content_futures)
-            .await
+        let (suitcase_contents, regular_contents): (Vec<_>, Vec<_>) = all_contents
             .into_iter()
-            .flatten()
             .partition(|content| content.content_type == "fa-suitcase");
 
-        let mut assignment_futures = Vec::new();
-
-        for assignment in &suitcase_contents {
-            let future = self.scrape_assignment(&assignment.meeting_url, &assignment.url);
-            assignment_futures.push(future);
-        }
-
-        let (assignments, lecturers): (Vec<_>, Vec<_>) =
-            join_all(assignment_futures).await.into_iter().unzip();
+        let (assignments, lecturers): (Vec<AssignmentEntity>, Vec<Option<Lecturer>>) =
+            try_join_all(suitcase_contents.iter().map(|assignment| {
+                self.scrape_assignment(&assignment.meeting_url, &assignment.url)
+            }))
+            .await?
+            .into_iter()
+            .unzip();
 
         let lecturer_map: HashMap<String, String> = lecturers
             .into_iter()
@@ -182,36 +189,57 @@ impl InternetDataSource {
             }
         }
 
-        LmsEntity {
+        Ok(LmsEntity {
             student,
             courses,
             meetings,
             attendances,
             contents: regular_contents,
             assignments,
-        }
+        })
     }
 
-    async fn cookie_renewed(&self, nim: &str, pwd: &str) {
+    async fn cookie_renewed(&self, nim: &str, pwd: &str) -> Result<(), LmsError> {
         let html = self
             .web
             .get("https://lms.unindra.ac.id/login_new")
             .send()
             .await
-            .unwrap()
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
             .text()
             .await
-            .unwrap();
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
         let (t_csrf, random_name, random_value) = {
             let document = Html::parse_document(&html);
             let input_sel = Selector::parse("input[type=hidden]").unwrap();
             let mut inputs = document.select(&input_sel);
 
-            let t = inputs.next().unwrap().attr("value").unwrap().to_string();
-            let random_input = inputs.next().unwrap();
-            let rn = random_input.attr("name").unwrap().to_string();
-            let rv = random_input.attr("value").unwrap().to_string();
+            let csrf_input = inputs.next().ok_or_else(|| LmsError::ParserError {
+                msg: "CSRF token hidden input field not found".into(),
+            })?;
+            let t = csrf_input
+                .attr("value")
+                .ok_or_else(|| LmsError::ParserError {
+                    msg: "CSRF token hidden input field is missing 'value' attribute".into(),
+                })?
+                .to_string();
+
+            let random_check_input = inputs.next().ok_or_else(|| LmsError::ParserError {
+                msg: "Random check hidden input field not found".into(),
+            })?;
+            let rn = random_check_input
+                .attr("name")
+                .ok_or_else(|| LmsError::ParserError {
+                    msg: "Random check hidden input field is missing 'name' attribute".into(),
+                })?
+                .to_string();
+            let rv = random_check_input
+                .attr("value")
+                .ok_or_else(|| LmsError::ParserError {
+                    msg: "Random check hidden input field is missing 'value' attribute".into(),
+                })?
+                .to_string();
 
             (t, rn, rv)
         };
@@ -221,12 +249,12 @@ impl InternetDataSource {
             .get("https://lms.unindra.ac.id/kapca")
             .send()
             .await
-            .unwrap()
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
             .bytes()
             .await
-            .unwrap();
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-        let kapca_answer = solve_captcha(bytes).await;
+        let kapca_answer = solve_captcha(bytes).await?;
 
         let form_data = [
             ("csrf_token", t_csrf),
@@ -236,27 +264,49 @@ impl InternetDataSource {
             ("kapca", kapca_answer),
         ];
 
-        let _response = self
+        let response = self
             .web
             .post("https://lms.unindra.ac.id/login_new")
             .form(&form_data)
             .send()
             .await
-            .unwrap();
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+            .text()
+            .await
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+
+        if response.contains("Username atau password salah") {
+            return Err(LmsError::CredentialError);
+        }
+        if response.contains("Jawaban Captcha Salah") {
+            return Err(LmsError::CaptchaError);
+        }
+
+        Ok(())
     }
 
-    async fn execute_attendances(&self, urls: Vec<String>) -> Vec<String> {
-        let futures = urls.into_iter().map(|url| async move {
-            let result = self.web.get(&url).send().await;
-
-            match result {
-                Ok(response) if response.status().is_success() => None,
-                Ok(response) => Some(format!("Gagal absensi, status: {}", response.status())),
-                Err(e) => Some(e.to_string()),
+    async fn execute_attendances(&self, urls: Vec<String>) -> Result<(), LmsError> {
+        let results = try_join_all(urls.into_iter().map(|url| async move {
+            let res = self.web.get(&url).send().await;
+            match res {
+                Ok(response) if response.status().is_success() => Ok(Ok(())),
+                Ok(response) => Ok(Err(format!("Gagal absensi, status: {}", response.status()))),
+                Err(e) => Err(LmsError::NetworkError { msg: e.to_string() }),
             }
-        });
+        }))
+        .await?;
 
-        join_all(futures).await.into_iter().flatten().collect()
+        let has_success = results.iter().any(|r| r.is_ok());
+        if has_success || results.is_empty() {
+            Ok(())
+        } else {
+            let err_msg = results
+                .into_iter()
+                .filter_map(|r| r.err())
+                .collect::<Vec<_>>()
+                .join("; ");
+            Err(LmsError::NetworkError { msg: err_msg })
+        }
     }
 
     async fn download_file(
@@ -406,7 +456,7 @@ impl InternetDataSource {
         });
 
         let body = reqwest::Body::wrap_stream(progress_stream);
-        let part = reqwest::multipart::Part::stream_with_length(body, file_size as u64)
+        let part = reqwest::multipart::Part::stream_with_length(body, file_size)
             .file_name(file_name.clone());
 
         let form = reqwest::multipart::Form::new()
@@ -435,17 +485,21 @@ impl InternetDataSource {
 }
 
 impl InternetDataSource {
-    fn scrape_dashboard(dashboard_page: &str) -> (Student, Vec<Course>, Vec<MeetingEntity>) {
+    fn scrape_dashboard(
+        dashboard_page: &str,
+    ) -> Result<(Student, Vec<Course>, Vec<MeetingEntity>), LmsError> {
         let dashboard_html = Html::parse_document(dashboard_page);
 
-        (
-            Self::parse_student(&dashboard_html),
-            Self::parse_courses(&dashboard_html),
-            Self::parse_meetings(&dashboard_html),
-        )
+        Ok((
+            Self::parse_student(&dashboard_html)?,
+            Self::parse_courses(&dashboard_html)?,
+            Self::parse_meetings(&dashboard_html)?,
+        ))
     }
 
-    fn parse_student(dashboard_html: &Html) -> Student {
+    fn parse_student(dashboard_html: &Html) -> Result<Student, LmsError> {
+        let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+
         let name_selector = Selector::parse("div.pull-left.info p").unwrap();
         let npm_selector = Selector::parse("li.user-body strong").unwrap();
         let program_selector = Selector::parse("span.Badge-info").unwrap();
@@ -453,68 +507,76 @@ impl InternetDataSource {
         let toggle_sel = Selector::parse("li.user-menu a.dropdown-toggle").unwrap();
         let img_sel = Selector::parse("img").unwrap();
 
-        let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
-
         let raw_name = dashboard_html
             .select(&name_selector)
             .next()
-            .unwrap()
-            .text()
-            .next()
-            .unwrap();
+            .and_then(|el| el.text().next())
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Student name not found".into(),
+            })?;
+
+        let name = format_title_case(raw_name);
 
         let npm = dashboard_html
             .select(&npm_selector)
             .next()
-            .unwrap()
-            .text()
-            .next()
-            .unwrap();
+            .and_then(|el| el.text().next())
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Student NPM not found".into(),
+            })?
+            .to_string();
 
         let study_program = dashboard_html
             .select(&program_selector)
             .next()
-            .unwrap()
-            .text()
-            .next()
-            .unwrap()
-            .trim();
+            .and_then(|el| el.text().next())
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Student study program not found".into(),
+            })?
+            .trim()
+            .to_string();
 
-        let class_code = dashboard_html
+        let class_name = dashboard_html
             .select(&class_selector)
             .next()
-            .unwrap()
-            .text()
-            .next()
-            .unwrap();
+            .and_then(|el| el.text().next())
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Student class code not found".into(),
+            })?
+            .to_string();
 
         let wrap = dashboard_html
             .select(&toggle_sel)
             .next()
-            .unwrap()
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Student user menu toggle not found".into(),
+            })?
             .inner_html()
             .replace("<!--", "")
             .replace("-->", "");
 
         let frag = Html::parse_fragment(&wrap);
 
-        let pp = frag
+        let profile_picture_url = frag
             .select(&img_sel)
             .nth(1)
-            .unwrap()
-            .attr("src")
-            .filter(|url| !url.contains(base64_no_pic_z));
+            .and_then(|el| el.attr("src"))
+            .filter(|url| !url.contains(base64_no_pic_z))
+            .map(String::from);
 
-        Student {
-            name: format_title_case(raw_name),
-            npm: npm.to_string(),
-            study_program: study_program.to_string(),
-            class_name: class_code.to_string(),
-            profile_picture_url: pp.map(|s| s.to_string()),
-        }
+        Ok(Student {
+            name,
+            npm,
+            study_program,
+            class_name,
+            profile_picture_url,
+        })
     }
 
-    fn parse_courses(dashboard_html: &Html) -> Vec<Course> {
+    fn parse_courses(dashboard_html: &Html) -> Result<Vec<Course>, LmsError> {
+        let base64_no_pic = "UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
+        let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+
         let widget_sel = Selector::parse("div.box-widget").unwrap();
         let lecturer_sel = Selector::parse("h3.widget-user-username").unwrap();
         let header_sel = Selector::parse("span.header_badeg").unwrap();
@@ -522,78 +584,121 @@ impl InternetDataSource {
         let desc_sel = Selector::parse("h5.widget-user-desc").unwrap();
         let img_sel = Selector::parse("img").unwrap();
 
-        let base64_no_pic = "UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
-        let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
-
-        dashboard_html
-            .select(&widget_sel)
-            .map(|el| {
+        dashboard_html.select(&widget_sel).map(|el| {
                 let raw_lecturer = el
                     .select(&lecturer_sel)
                     .next()
-                    .unwrap()
-                    .text()
-                    .next()
-                    .unwrap();
+                    .and_then(|el| el.text().next())
+                    .ok_or_else(|| LmsError::ParserError {
+                        msg: "Lecturer username text is empty".into(),
+                    })?;
+
+                let lecturer_name = format_title_case(raw_lecturer);
 
                 let header_text = el
                     .select(&header_sel)
                     .next()
-                    .unwrap()
-                    .text()
-                    .next()
-                    .unwrap()
+                    .and_then(|el| el.text().next())
+                    .ok_or_else(|| LmsError::ParserError {
+                        msg: "Course header text is empty".into(),
+                    })?
                     .replace("\n                         ", "");
 
-                let (course_code, raw_course_name) = header_text.split_once(" -").unwrap();
+                let (course_code_raw, course_name_raw) = header_text.split_once(" -").ok_or_else(
+                    || LmsError::ParserError {
+                        msg: format!(
+                            "Failed to split course code and name using separator ' -' from: '{}'",
+                            header_text
+                        ),
+                    },
+                )?;
 
-                let course_name = match raw_course_name {
-                    "Arsitektur dan Organisasi Komput" => "Arsitektur dan Organisasi Komputer",
-                    other => other.trim_end_matches(&[' ', '*', '#', ')'][..]),
+                let code = course_code_raw.to_string();
+
+                let name = match course_name_raw {
+                    "Arsitektur dan Organisasi Komput" => {
+                        "Arsitektur dan Organisasi Komputer".to_string()
+                    }
+                    other => other
+                        .trim_end_matches(&[' ', '*', '#', ')'][..])
+                        .to_string(),
                 };
 
-                let green_text = el.select(&green_sel).next().unwrap().text().next().unwrap();
+                let green_text = el
+                    .select(&green_sel)
+                    .next()
+                    .and_then(|el| el.text().next())
+                    .ok_or_else(|| LmsError::ParserError {
+                        msg: "Course schedule text is empty".into(),
+                    })?;
 
                 let mut parts = green_text.split('|').map(|s| s.trim());
-                let room = parts.nth(1).unwrap().split_once(" ").unwrap().1;
-                let time_raw = parts.next().unwrap().split_once(" ").unwrap().1;
 
-                let (day, clock) = time_raw.split_once(", ").unwrap();
+                let room = parts
+                    .nth(1)
+                    .and_then(|el| el.split_once(' '))
+                    .ok_or_else(|| LmsError::ParserError {
+                        msg: format!(
+                            "Failed to parse room segment (expected format 'Ruang <room_name>') from schedule string: '{}'",
+                            green_text
+                        ),
+                    })?
+                    .1
+                    .to_string();
+
+                let schedule_details = parts
+                    .next()
+                    .and_then(|el| el.split_once(' '))
+                    .ok_or_else(|| LmsError::ParserError {
+                        msg: format!(
+                            "Failed to parse schedule details segment (expected format 'Waktu <day, clock>') from schedule string: '{}'",
+                            green_text
+                        ),
+                    })?
+                    .1;
+
+                let (day_raw, clock_raw) =
+                    schedule_details
+                        .split_once(", ")
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: format!(
+                                "Failed to split day and clock using ', ' from: '{}'",
+                                schedule_details
+                            ),
+                        })?;
+
+                let day = day_raw.to_string();
+                let clock = clock_raw.to_string();
 
                 let lecturer_phone_number = el
                     .select(&desc_sel)
                     .next()
-                    .unwrap()
-                    .text()
-                    .next()
-                    .unwrap()
-                    .split_once(" : ")
+                    .and_then(|el| el.text().next()?.split_once(" : "))
                     .map(|(_, hp)| hp)
-                    .filter(|s| !s.is_empty());
+                    .filter(|s| !s.is_empty())
+                    .map(String::from);
 
                 let lecturer_profile_picture_url = el
                     .select(&img_sel)
                     .next()
-                    .unwrap()
-                    .attr("src")
-                    .filter(|url| !url.ends_with(base64_no_pic) && !url.contains(base64_no_pic_z));
+                    .and_then(|img| img.attr("src"))
+                    .filter(|url| !url.ends_with(base64_no_pic) && !url.contains(base64_no_pic_z))
+                    .map(String::from);
 
-                Course {
-                    code: course_code.to_string(),
-                    name: course_name.to_string(),
-                    day: day.to_string(),
-                    clock: clock.to_string(),
-                    room: room.to_string(),
-                    lecturer_name: format_title_case(raw_lecturer),
-                    lecturer_phone_number: lecturer_phone_number.map(|s| s.to_string()),
-                    lecturer_profile_picture_url: lecturer_profile_picture_url
-                        .map(|s| s.to_string()),
-                }
-            })
-            .collect::<Vec<_>>()
+                Ok(Course {
+                    code,
+                    name,
+                    day,
+                    clock,
+                    room,
+                    lecturer_name,
+                    lecturer_phone_number,
+                    lecturer_profile_picture_url,
+                })
+            }).collect()
     }
 
-    fn parse_meetings(dashboard_html: &Html) -> Vec<MeetingEntity> {
+    fn parse_meetings(dashboard_html: &Html) -> Result<Vec<MeetingEntity>, LmsError> {
         let tree_sel = Selector::parse("ul.treeview-menu").unwrap();
         let widget_sel = Selector::parse("div.box-widget").unwrap();
         let a_sel = Selector::parse("ul li a").unwrap();
@@ -602,285 +707,282 @@ impl InternetDataSource {
         let treeviews = dashboard_html.select(&tree_sel);
         let widgets = dashboard_html.select(&widget_sel);
 
-        treeviews
-            .zip(widgets)
-            .map(|(tree, widget)| {
-                let course_code = widget
-                    .select(&badge_sel)
-                    .next()
-                    .unwrap()
+        let mut meetings = Vec::new();
+
+        for (tree, widget) in treeviews.zip(widgets) {
+            let course_code = widget
+                .select(&badge_sel)
+                .next()
+                .and_then(|el| el.text().next()?.split_once(" -"))
+                .ok_or_else(|| LmsError::ParserError { msg: "Failed to parse course code from badge text (expected format '<course_code> - <course_name>')".to_string() })?
+                .0
+                .to_string();
+
+            for a_tag in tree.select(&a_sel) {
+                let url = a_tag
+                    .attr("href")
+                    .ok_or_else(|| LmsError::ParserError {
+                        msg: "Meeting link element 'a' is missing the 'href' attribute".into(),
+                    })?
+                    .to_string();
+
+                let number = a_tag
                     .text()
-                    .next()
-                    .unwrap()
-                    .split_once(" -")
-                    .unwrap()
-                    .0;
+                    .nth(1)
+                    .and_then(|s| s.split_once(' ')?.1.parse::<i8>().ok())
+                    .ok_or_else(|| LmsError::ParserError { msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".into() })?;
 
-                tree.select(&a_sel)
-                    .map(|a_tag| {
-                        let url = a_tag.attr("href").unwrap();
-
-                        let meeting_number = a_tag
-                            .text()
-                            .nth(1)
-                            .unwrap()
-                            .split_once(" ")
-                            .unwrap()
-                            .1
-                            .parse::<i8>()
-                            .unwrap();
-
-                        MeetingEntity {
-                            course_code: course_code.to_string(),
-                            url: url.to_string(),
-                            number: meeting_number,
-                        }
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect::<Vec<_>>()
+                meetings.push(MeetingEntity {
+                    course_code: course_code.clone(),
+                    url,
+                    number,
+                });
+            }
+        }
+        Ok(meetings)
     }
 
-    async fn fetch_attendances(&self) -> Vec<AttendanceEntity> {
+    async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
         let presence_html = self
             .web
             .get("https://lms.unindra.ac.id/presensi")
             .send()
             .await
-            .unwrap()
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
             .text()
             .await
-            .unwrap();
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-        let mut tasks = Vec::new();
+        let click_sel = Selector::parse("td[onclick*=absensi_mhs]").unwrap();
+        let td_sel = Selector::parse("td").unwrap();
+        let row_sel = Selector::parse("table.table-bordered tbody tr").unwrap();
 
-        {
+        let row_attend_sel =
+            Arc::new(Selector::parse("table.table-bordered tbody tr td.text-center").unwrap());
+        let attended_sel = Arc::new(Selector::parse("i.fa-calendar-check-o").unwrap());
+
+        let row_params = {
             let document = Html::parse_document(&presence_html);
 
             let Some(nim_id) = document
-                .select(&Selector::parse("td[onclick*=absensi_mhs]").unwrap())
+                .select(&click_sel)
                 .next()
-                .map(|el| {
-                    el.attr("onclick")
-                        .unwrap()
-                        .split('\'')
-                        .nth(3)
-                        .unwrap()
-                        .to_string()
-                })
+                .and_then(|el| el.attr("onclick")?.split('\'').nth(3))
+                .map(String::from)
             else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
 
-            let nim_id_arc = Arc::new(nim_id);
+            document
+                .select(&row_sel)
+                .map(|row| {
+                    let mut cols = row.select(&td_sel);
 
-            let td_sel = Selector::parse("td").unwrap();
-            let row_sel_arc = Arc::new(Selector::parse("table.table-bordered tbody tr").unwrap());
-            let td_center_sel_arc = Arc::new(Selector::parse("td.text-center").unwrap());
-            let attended_sel_arc = Arc::new(Selector::parse("i.fa-calendar-check-o").unwrap());
+                    let course_code = cols
+                        .nth(1)
+                        .and_then(|el| el.text().next())
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Gagal memparsing kode mata kuliah".to_string(),
+                        })?
+                        .trim()
+                        .to_string();
 
-            for row in document.select(&*row_sel_arc) {
-                let mut cols = row.select(&td_sel);
+                    let kode_jadwal_id = cols
+                        .next()
+                        .and_then(|el| el.attr("onclick")?.split('\'').nth(1))
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Gagal memparsing kode jadwal".to_string(),
+                        })?
+                        .to_string();
 
-                let course_code = cols
-                    .nth(1)
-                    .unwrap()
-                    .text()
-                    .next()
-                    .unwrap()
-                    .trim()
-                    .to_string();
+                    Ok((nim_id.clone(), course_code, kode_jadwal_id))
+                })
+                .collect::<Result<Vec<_>, LmsError>>()
+        }?;
 
-                let kode_jadwal_id = cols
-                    .next()
-                    .unwrap()
-                    .attr("onclick")
-                    .unwrap()
-                    .split('\'')
-                    .nth(1)
-                    .unwrap()
-                    .to_string();
+        let client = &self.web;
 
-                let client_clone = self.web.clone();
-                let nim_id_shared = Arc::clone(&nim_id_arc);
-                let row_sel_shared = Arc::clone(&row_sel_arc);
-                let td_center_sel_shared = Arc::clone(&td_center_sel_arc);
-                let attended_sel_shared = Arc::clone(&attended_sel_arc);
+        let results = try_join_all(row_params.into_iter().map(
+            |(nim_id, course_code, kode_jadwal_id)| {
+                let row_attend_clone = Arc::clone(&row_attend_sel);
+                let attended_sel = Arc::clone(&attended_sel);
 
-                let task = tokio::spawn(async move {
-                    let html = client_clone
+                async move {
+                    let html = client
                         .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
-                        .form(&[("kd_jdw", &kode_jadwal_id), ("nim", &*nim_id_shared)])
+                        .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
                         .send()
                         .await
-                        .unwrap()
+                        .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
                         .text()
                         .await
-                        .unwrap();
+                        .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-                    Html::parse_document(&html)
-                        .select(&*row_sel_shared)
-                        .next()
-                        .unwrap()
-                        .select(&*td_center_sel_shared)
+                    let doc = Html::parse_document(&html);
+
+                    let list = doc
+                        .select(&*row_attend_clone)
                         .enumerate()
                         .map(|(index, col)| AttendanceEntity {
                             course_code: course_code.clone(),
                             index: index as i8 + 1,
-                            is_attended: col.select(&*attended_sel_shared).next().is_some(),
+                            is_attended: col.select(&attended_sel).next().is_some(),
                         })
-                        .collect::<Vec<_>>()
-                });
+                        .collect::<Vec<_>>();
 
-                tasks.push(task);
-            }
-        }
+                    Ok(list)
+                }
+            },
+        ))
+        .await?;
 
-        join_all(tasks)
-            .await
-            .into_iter()
-            .map(|res| res.unwrap())
-            .flatten()
-            .collect()
+        Ok(results.into_iter().flatten().collect())
     }
 
-    async fn fetch_contents(&self, meeting_url: &str) -> Vec<ContentEntity> {
+    async fn fetch_contents(&self, meeting_url: &str) -> Result<Vec<ContentEntity>, LmsError> {
         let html = self
             .web
             .get(meeting_url)
             .send()
             .await
-            .unwrap()
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
             .text()
             .await
-            .unwrap();
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-        let mut tasks = Vec::new();
-
-        {
+        let futures = {
             let document = Html::parse_document(&html);
             let row_sel = Selector::parse("tbody tr").unwrap();
             let div_sel = Selector::parse("div.col-md-4").unwrap();
             let icon_sel = Selector::parse("a i").unwrap();
             let a_sel = Selector::parse("a").unwrap();
 
-            for row in document.select(&row_sel) {
-                let mut divs = row.select(&div_sel);
-                let div1 = divs.next().unwrap();
-                let div2 = divs.next().unwrap();
+            document
+                .select(&row_sel)
+                .map(|row| {
+                    let mut divs = row.select(&div_sel);
 
-                let mut a_tags = div1.select(&a_sel);
-                let a_first = a_tags.next().unwrap();
-                let a_second = a_tags.next().unwrap();
+                    let div1 = divs.next().ok_or_else(|| LmsError::ParserError {
+                        msg: "First column ('div.col-md-4') not found in meeting content row"
+                            .into(),
+                    })?;
 
-                let href = a_second.attr("href").unwrap();
+                    let div2 = divs.next();
 
-                let link = if href.starts_with("http") {
-                    href.to_string()
-                } else {
-                    a_first
-                        .attr("onclick")
-                        .unwrap()
-                        .split('\'')
-                        .nth(1)
-                        .unwrap()
-                        .to_string()
-                };
+                    let mut a_tags = div1.select(&a_sel);
 
-                let content_type = div1
-                    .select(&icon_sel)
-                    .next()
-                    .unwrap()
-                    .attr("class")
-                    .unwrap()
-                    .split_whitespace()
-                    .find(|c| c.starts_with("fa-"))
-                    .unwrap_or_else(|| {
-                        if link.starts_with("https://lms.unindra.ac.id/member_tugas") {
-                            "fa-suitcase"
-                        } else {
-                            "fa-pdf"
-                        }
-                    })
-                    .to_string();
+                    let a_first = a_tags.next();
+                    let a_second = a_tags.next();
 
-                let title = if let Some(text) = div2
-                    .text()
-                    .next()
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                {
-                    text.rsplit_once('.')
-                        .map(|(before_dot, _)| before_dot)
-                        .unwrap_or(text)
-                        .to_string()
-                } else {
-                    div1.text().nth(5).unwrap().to_string()
-                };
+                    let link = a_second
+                        .and_then(|el| el.attr("href"))
+                        .filter(|href| href.starts_with("http"))
+                        .or_else(|| a_first.and_then(|el| el.attr("onclick")?.split('\'').nth(1)))
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "No valid link found (missing 'http' in href and no 'onclick')"
+                                .into(),
+                        })?
+                        .to_string();
 
-                let client_clone = self.web.clone();
+                    let content_type = div1
+                        .select(&icon_sel)
+                        .next()
+                        .and_then(|el| {
+                            el.attr("class")?
+                                .split_whitespace()
+                                .find(|c| c.starts_with("fa-"))
+                        })
+                        .unwrap_or(
+                            if link.starts_with("https://lms.unindra.ac.id/member_tugas") {
+                                "fa-suitcase"
+                            } else {
+                                "fa-pdf"
+                            },
+                        )
+                        .to_string();
 
-                let meeting_url_clone = meeting_url.to_string();
+                    let title = match div2
+                        .and_then(|d| d.text().next())
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                    {
+                        Some(text) => text
+                            .rsplit_once('.')
+                            .map_or(text, |(before_dot, _)| before_dot)
+                            .to_string(),
 
-                let task = tokio::spawn(async move {
-                    let real_link = if link.contains("member_url") {
-                        client_clone
-                            .get(&link)
-                            .send()
-                            .await
-                            .unwrap()
+                        None => div1
                             .text()
-                            .await
-                            .unwrap()
-                    } else {
-                        link
+                            .nth(5)
+                            .ok_or_else(|| LmsError::ParserError {
+                                msg: "Failed to parse content title".into(),
+                            })?
+                            .trim()
+                            .to_string(),
                     };
 
-                    ContentEntity {
-                        meeting_url: meeting_url_clone,
-                        content_type,
-                        title,
-                        url: real_link,
-                    }
-                });
+                    let client = &self.web;
+                    let meeting_url_str = meeting_url.to_string();
 
-                tasks.push(task);
-            }
-        }
+                    Ok(async move {
+                        let real_link = if link.contains("member_url") {
+                            client
+                                .get(&link)
+                                .send()
+                                .await
+                                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+                                .text()
+                                .await
+                                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+                        } else {
+                            link
+                        };
 
-        join_all(tasks)
-            .await
-            .into_iter()
-            .map(|res| res.unwrap())
-            .collect()
+                        Ok::<ContentEntity, LmsError>(ContentEntity {
+                            meeting_url: meeting_url_str,
+                            content_type,
+                            title,
+                            url: real_link,
+                        })
+                    })
+                })
+                .collect::<Result<Vec<_>, LmsError>>()?
+        };
+
+        let results = try_join_all(futures).await?;
+
+        Ok(results)
     }
 
     async fn scrape_assignment(
         &self,
         fk_meeting_url: &str,
         pk_assignment_url: &str,
-    ) -> (AssignmentEntity, Option<Lecturer>) {
+    ) -> Result<(AssignmentEntity, Option<Lecturer>), LmsError> {
         let html = self
             .web
             .get(pk_assignment_url)
             .send()
             .await
-            .unwrap()
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
             .text()
             .await
-            .unwrap();
+            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
         let document = Html::parse_document(&html);
 
         let msg_sel = Selector::parse("div[style*=padding-left]").unwrap();
         let default_sel = Selector::parse("div.callout-white-default").unwrap();
         let warning_sel = Selector::parse("div.callout-white-warning").unwrap();
+        let deadline_sel = Selector::parse("div.callout-white-default table tr td").unwrap();
+        let user_block_sel = Selector::parse("div.user-block").unwrap();
+        let name_sel = Selector::parse("span").unwrap();
+        let image_sel = Selector::parse("img").unwrap();
 
         let message = document
             .select(&msg_sel)
             .next()
-            .and_then(|element| element.text().next());
+            .and_then(|element| element.text().next()).map(String::from);
 
         let assign_file_url = document
             .select(&default_sel)
@@ -888,12 +990,13 @@ impl InternetDataSource {
             .and_then(|el| extract_file_url(el));
 
         let deadline = document
-            .select(&Selector::parse("div.callout-white-default table tr td").unwrap())
+            .select(&deadline_sel)
             .nth(2)
-            .unwrap()
-            .text()
-            .next()
-            .unwrap();
+            .and_then(|el| el.text().next())
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Deadline text not found".into(),
+            })?
+            .to_string();
 
         let view_submit_file_url = document
             .select(&warning_sel)
@@ -904,11 +1007,11 @@ impl InternetDataSource {
         let is_expired = html.contains("Waktu Submit sudah berakhir");
 
         let lecturer_opt = document
-            .select(&Selector::parse("div.user-block").unwrap())
+            .select(&user_block_sel)
             .next()
             .and_then(|user_block| {
                 let name = user_block
-                    .select(&Selector::parse("span").unwrap())
+                    .select(&name_sel)
                     .next()?
                     .text()
                     .next()?
@@ -917,7 +1020,7 @@ impl InternetDataSource {
                     .to_string();
 
                 let profile_picture_url = user_block
-                    .select(&Selector::parse("img").unwrap())
+                    .select(&image_sel)
                     .next()?
                     .attr("src")?
                     .to_string();
@@ -928,19 +1031,19 @@ impl InternetDataSource {
                 })
             });
 
-        (
+        Ok((
             AssignmentEntity {
                 meeting_url: fk_meeting_url.to_string(),
                 url: pk_assignment_url.to_string(),
-                message: message.map(|s| s.to_string()),
+                message,
                 assign_file_url,
-                deadline: deadline.to_string(),
+                deadline,
                 view_submit_file_url,
                 is_submitted,
                 is_overdue: is_expired,
             },
             lecturer_opt,
-        )
+        ))
     }
 }
 
@@ -954,21 +1057,40 @@ static REC_MODEL: std::sync::LazyLock<ocr_rs::RecModel> = std::sync::LazyLock::n
     ocr_rs::RecModel::from_bytes_with_charset(model_bytes, charset_bytes, None).unwrap()
 });
 
-async fn solve_captcha(bytes: bytes::Bytes) -> String {
+async fn solve_captcha(bytes: bytes::Bytes) -> Result<String, LmsError> {
     tokio::task::spawn_blocking(move || {
-        let image = image::load_from_memory(&bytes).unwrap();
+        let image = image::load_from_memory(&bytes).map_err(|e| LmsError::ParserError {
+            msg: format!("Failed to load captcha image: {}", e),
+        })?;
 
-        let raw_text = REC_MODEL.recognize_text(&image).unwrap();
+        let raw_text = REC_MODEL
+            .recognize_text(&image)
+            .map_err(|e| LmsError::ParserError {
+                msg: format!("OCR text recognition failed: {:?}", e),
+            })?;
 
-        let (num1, raw_num2) = raw_text.split_once("+").unwrap();
+        let (val1, val2) = raw_text
+            .split_once("+")
+            .and_then(|(left, right)| {
+                let left_val = left.trim().parse::<i8>().ok()?;
+                let right_val = right
+                    .split_once('=')
+                    .map(|(r, _)| r)?
+                    .trim()
+                    .parse::<i8>()
+                    .ok()?;
+                Some((left_val, right_val))
+            })
+            .ok_or_else(|| LmsError::ParserError {
+                msg: format!("Failed to parse captcha equation from: {}", raw_text),
+            })?;
 
-        let val1 = num1.parse::<i8>().unwrap();
-        let val2 = raw_num2.split_once('=').unwrap().0.parse::<i8>().unwrap();
-
-        (val1 + val2).to_string()
+        Ok((val1 + val2).to_string())
     })
     .await
-    .unwrap()
+    .map_err(|e| LmsError::ParserError {
+        msg: format!("Captcha solving task joined with error: {}", e),
+    })?
 }
 
 fn extract_file_url(container: ElementRef) -> Option<String> {
@@ -977,49 +1099,57 @@ fn extract_file_url(container: ElementRef) -> Option<String> {
     let other_sel = Selector::parse("a[href*=force_download]").unwrap();
 
     // Cek PDF
-    if let Some(a_tag) = container.select(&pdf_sel).next() {
-        if let Some(onclick) = a_tag.value().attr("onclick") {
-            // Pengganti substringAfter("'").substringBefore("'")
-            if let Some(id) = onclick.split('\'').nth(1) {
-                return Some(format!(
-                    "https://lms.unindra.ac.id/media_public/lihat_pdf/{}",
-                    id
-                ));
-            }
-        }
+    if let Some(id) = container.select(&pdf_sel).next().and_then(|a| {
+        let onclick = a.attr("onclick")?;
+        onclick.split('\'').nth(1)
+    }) {
+        return Some(format!(
+            "https://lms.unindra.ac.id/media_public/lihat_pdf/{}",
+            id
+        ));
     }
 
     // Cek Gambar
-    if let Some(a_tag) = container.select(&pict_sel).next() {
-        if let Some(onclick) = a_tag.value().attr("onclick") {
-            if let Some(id) = onclick.split('\'').nth(1) {
-                return Some(format!(
-                    "https://lms.unindra.ac.id/media_public/lihat_gambar/{}",
-                    id
-                ));
-            }
-        }
+    if let Some(id) = container.select(&pict_sel).next().and_then(|a| {
+        let onclick = a.attr("onclick")?;
+        onclick.split('\'').nth(1)
+    }) {
+        return Some(format!(
+            "https://lms.unindra.ac.id/media_public/lihat_gambar/{}",
+            id
+        ));
     }
 
     // Cek Lainnya
-    if let Some(a_tag) = container.select(&other_sel).next() {
-        if let Some(href) = a_tag.value().attr("href") {
-            return Some(href.to_string());
-        }
+    if let Some(href) = container
+        .select(&other_sel)
+        .next()
+        .and_then(|a| a.attr("href"))
+    {
+        return Some(href.to_string());
     }
 
     None
 }
 
 fn format_title_case(s: &str) -> String {
-    s.to_lowercase()
-        .split_whitespace()
-        .map(|word| {
-            let mut c = word.chars();
-            c.next().unwrap().to_ascii_uppercase().to_string() + c.as_str()
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut result = String::with_capacity(s.len());
+
+    for (i, word) in s.split_ascii_whitespace().enumerate() {
+        if i > 0 {
+            result.push(' ');
+        }
+
+        let mut chars = word.chars();
+        if let Some(first_char) = chars.next() {
+            result.push(first_char.to_ascii_uppercase());
+            for c in chars {
+                result.push(c.to_ascii_lowercase());
+            }
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -1031,7 +1161,7 @@ mod tests {
     async fn solve_captcha_local() {
         let captcha = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/captcha.png")).unwrap();
         let captcha_bytes = bytes::Bytes::from(captcha);
-        let answer = solve_captcha(captcha_bytes).await;
+        let answer = solve_captcha(captcha_bytes).await.unwrap();
 
         println!("captcha answer: {answer}");
 
@@ -1043,7 +1173,7 @@ mod tests {
     async fn parse_student_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        internet_data_source
+        let _ = internet_data_source
             .cookie_renewed("202443500660", "GamerJeniusN")
             .await;
 
@@ -1069,7 +1199,8 @@ mod tests {
     fn parse_courses_with_local_dashboard_html() {
         let real_dashboard_html = include_str!("../html/dashboard.html");
 
-        let result = InternetDataSource::parse_courses(&Html::parse_document(real_dashboard_html));
+        let result =
+            InternetDataSource::parse_courses(&Html::parse_document(real_dashboard_html)).unwrap();
 
         println!("parsed {} courses", result.len());
         for course in &result {
@@ -1141,7 +1272,8 @@ mod tests {
     fn parse_meetings_with_local_dashboard_html() {
         let real_dashboard_html = include_str!("../html/dashboard.html");
 
-        let result = InternetDataSource::parse_meetings(&Html::parse_document(real_dashboard_html));
+        let result =
+            InternetDataSource::parse_meetings(&Html::parse_document(real_dashboard_html)).unwrap();
 
         for meeting in &result {
             println!(
@@ -1162,10 +1294,10 @@ mod tests {
     async fn fetch_attendances_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        internet_data_source
+        let _ = internet_data_source
             .cookie_renewed("202443500660", "GamerJeniusN")
             .await;
-        let result = internet_data_source.fetch_attendances().await;
+        let result = internet_data_source.fetch_attendances().await.unwrap();
 
         let mut grouped: Vec<(String, Vec<bool>)> = Vec::new();
         for att in &result {
@@ -1206,11 +1338,11 @@ mod tests {
     async fn fetch_contents_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        internet_data_source
+        let _ = internet_data_source
             .cookie_renewed("202443500660", "GamerJeniusN")
             .await;
 
-        let result = internet_data_source.fetch_contents("https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=").await;
+        let result = internet_data_source.fetch_contents("https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=").await.unwrap();
 
         println!("parsed {} contents", result.len());
         for content in &result {
@@ -1235,14 +1367,14 @@ mod tests {
     async fn fetch_assignments_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        internet_data_source
+        let _ = internet_data_source
             .cookie_renewed("202443500660", "GamerJeniusN")
             .await;
 
         let result = internet_data_source.scrape_assignment(
             "https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=",
             "https://lms.unindra.ac.id/member_tugas/kelas/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoTGRJUzJxc3FQTDNIQ0thK0hmc3A4cUhSRVZOL0tiLy9ic09xWmJNM0VnRHc2anlhMnFDN0YzbVA0aDFWcnltRGwxMW04ZFBLNjF2MU9BdDU1OVBrcGc9"
-        ).await.0;
+        ).await.unwrap().0;
 
         println!("{:#?}", result);
 
@@ -1257,11 +1389,11 @@ mod tests {
     async fn fetch_all_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        internet_data_source
+        let _ = internet_data_source
             .cookie_renewed("202443500660", "GamerJeniusN")
             .await;
 
-        let result = internet_data_source.fetch_all().await;
+        let result = internet_data_source.fetch_all().await.unwrap();
 
         std::fs::write("lms_result.txt", format!("{:#?}", result)).expect("Gagal menulis ke file");
         println!("Data berhasil ditulis ke lms_result.txt");

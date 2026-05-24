@@ -105,11 +105,7 @@ class AttendanceViewModel(
 
             lmsRepository
                 .executeAttendances(urls)
-                .onSuccess { errors ->
-                    errors.forEach { errorMsg ->
-                        _snackbarEvent.trySend(errorMsg)
-                    }
-                }.onFailure {
+                .onFailure {
                     _snackbarEvent.trySend(it.message ?: "Gagal melakukan absensi")
                 }
 
