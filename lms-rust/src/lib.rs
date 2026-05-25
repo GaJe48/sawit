@@ -32,7 +32,7 @@ struct Student {
     name: String,
     npm: String,
     study_program: String,
-    class_name: String,
+    class_name: Option<String>,
     profile_picture_url: Option<String>,
 }
 
@@ -503,32 +503,33 @@ impl InternetDataSource {
     }
 
     fn parse_student(dashboard_html: &Html) -> Result<Student, LmsError> {
-        let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        let no_pic_z = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
-        static NAME_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.pull-left.info p").unwrap());
-        static NPM_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("li.user-body strong").unwrap());
-        static PROGRAM_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("span.Badge-info").unwrap());
-        static CLASS_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("span.pull-right.text-bold.badge").unwrap());
-        static TOGGLE_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("li.user-menu a.dropdown-toggle").unwrap());
-        static IMG_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
+        static NAME: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".user-header p").unwrap());
+        static NPM: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".user-body strong").unwrap());
+        static PROGRAM: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".Badge-info").unwrap());
+        static CLASS: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".pull-right.text-bold").unwrap());
+        static PROFILE: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".user-menu .dropdown-toggle").unwrap());
+        static IMG: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
 
         let raw_name = dashboard_html
-            .select(&NAME_SEL)
+            .select(&NAME)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
                 msg: "Student name not found".into(),
-            })?;
+            })?
+            .trim();
 
         let name = format_title_case(raw_name);
 
         let npm = dashboard_html
-            .select(&NPM_SEL)
+            .select(&NPM)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -537,7 +538,7 @@ impl InternetDataSource {
             .to_string();
 
         let study_program = dashboard_html
-            .select(&PROGRAM_SEL)
+            .select(&PROGRAM)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -547,32 +548,23 @@ impl InternetDataSource {
             .to_string();
 
         let class_name = dashboard_html
-            .select(&CLASS_SEL)
+            .select(&CLASS)
             .next()
             .and_then(|el| el.text().next())
-            .ok_or_else(|| LmsError::ParserError {
-                msg: "Student class code not found".into(),
-            })?
-            .to_string();
-
-        let wrap = dashboard_html
-            .select(&TOGGLE_SEL)
-            .next()
-            .ok_or_else(|| LmsError::ParserError {
-                msg: "Student user menu toggle not found".into(),
-            })?
-            .inner_html()
-            .replace("<!--", "")
-            .replace("-->", "");
-
-        let frag = Html::parse_fragment(&wrap);
-
-        let profile_picture_url = frag
-            .select(&IMG_SEL)
-            .nth(1)
-            .and_then(|el| el.attr("src"))
-            .filter(|url| !url.contains(base64_no_pic_z))
             .map(String::from);
+
+        let profile_picture_url = dashboard_html
+            .select(&PROFILE)
+            .next()
+            .map(|el| el.inner_html().replace("<!--", "").replace("-->", ""))
+            .and_then(|cleaned_html| {
+                Html::parse_fragment(&cleaned_html)
+                    .select(&IMG)
+                    .nth(1)
+                    .and_then(|img_el| img_el.attr("src"))
+                    .filter(|url| !url.starts_with(no_pic_z))
+                    .map(String::from)
+            });
 
         Ok(Student {
             name,
@@ -584,24 +576,21 @@ impl InternetDataSource {
     }
 
     fn parse_courses(dashboard_html: &Html) -> Result<Vec<Course>, LmsError> {
-        let base64_no_pic = "UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
-        let base64_no_pic_z = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        let no_pic = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
+        let no_pic_z = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
-        static WIDGET_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.box-widget").unwrap());
-        static LECTURER_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("h3.widget-user-username").unwrap());
-        static HEADER_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("span.header_badeg").unwrap());
-        static GREEN_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("span.text-green").unwrap());
-        static DESC_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("h5.widget-user-desc").unwrap());
-        static IMG_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
+        static CARD: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".box-widget").unwrap());
+        static LECTURER: LazyLock<Selector> = LazyLock::new(|| Selector::parse("h3").unwrap());
+        static HP: LazyLock<Selector> = LazyLock::new(|| Selector::parse("h5").unwrap());
+        static INFO: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".isi_badge span").unwrap());
+        static IMG: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
 
-        dashboard_html.select(&WIDGET_SEL).map(|el| {
+        dashboard_html
+            .select(&CARD)
+            .map(|el| {
                 let raw_lecturer = el
-                    .select(&LECTURER_SEL)
+                    .select(&LECTURER)
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
@@ -610,8 +599,23 @@ impl InternetDataSource {
 
                 let lecturer_name = format_title_case(raw_lecturer);
 
-                let header_text = el
-                    .select(&HEADER_SEL)
+                let lecturer_phone_number = el
+                    .select(&HP)
+                    .next()
+                    .and_then(|el| el.text().next()?.strip_prefix("HP : "))
+                    .filter(|s| !s.is_empty())
+                    .map(String::from);
+
+                let lecturer_profile_picture_url = el
+                    .select(&IMG)
+                    .next()
+                    .and_then(|img| img.attr("src"))
+                    .filter(|url| *url != no_pic && !url.starts_with(no_pic_z))
+                    .map(String::from);
+
+                let mut spans = el.select(&INFO);
+
+                let first_span = spans
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
@@ -619,18 +623,18 @@ impl InternetDataSource {
                     })?
                     .replace("\n                         ", "");
 
-                let (course_code_raw, course_name_raw) = header_text.split_once(" -").ok_or_else(
+                let (code_raw, name_raw) = first_span.split_once(" -").ok_or_else(
                     || LmsError::ParserError {
                         msg: format!(
                             "Failed to split course code and name using separator ' -' from: '{}'",
-                            header_text
+                            first_span
                         ),
                     },
                 )?;
 
-                let code = course_code_raw.to_string();
+                let code = code_raw.to_string();
 
-                let name = match course_name_raw {
+                let name = match name_raw {
                     "Arsitektur dan Organisasi Komput" => {
                         "Arsitektur dan Organisasi Komputer".to_string()
                     }
@@ -639,38 +643,35 @@ impl InternetDataSource {
                         .to_string(),
                 };
 
-                let green_text = el
-                    .select(&GREEN_SEL)
+                let sec_span = spans
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
                         msg: "Course schedule text is empty".into(),
                     })?;
 
-                let mut parts = green_text.split('|').map(|s| s.trim());
+                let mut parts = sec_span.split('|').map(|s| s.trim());
 
                 let room = parts
                     .nth(1)
-                    .and_then(|el| el.split_once(' '))
+                    .and_then(|el| el.strip_prefix("Ruang: "))
                     .ok_or_else(|| LmsError::ParserError {
                         msg: format!(
                             "Failed to parse room segment (expected format 'Ruang <room_name>') from schedule string: '{}'",
-                            green_text
+                            sec_span
                         ),
                     })?
-                    .1
                     .to_string();
 
                 let schedule_details = parts
                     .next()
-                    .and_then(|el| el.split_once(' '))
+                    .and_then(|el| el.strip_prefix("Waktu: "))
                     .ok_or_else(|| LmsError::ParserError {
                         msg: format!(
                             "Failed to parse schedule details segment (expected format 'Waktu <day, clock>') from schedule string: '{}'",
-                            green_text
+                            sec_span
                         ),
-                    })?
-                    .1;
+                    })?;
 
                 let (day_raw, clock_raw) =
                     schedule_details
@@ -684,21 +685,6 @@ impl InternetDataSource {
 
                 let day = day_raw.to_string();
                 let clock = clock_raw.to_string();
-
-                let lecturer_phone_number = el
-                    .select(&DESC_SEL)
-                    .next()
-                    .and_then(|el| el.text().next()?.split_once(" : "))
-                    .map(|(_, hp)| hp)
-                    .filter(|s| !s.is_empty())
-                    .map(String::from);
-
-                let lecturer_profile_picture_url = el
-                    .select(&IMG_SEL)
-                    .next()
-                    .and_then(|img| img.attr("src"))
-                    .filter(|url| !url.ends_with(base64_no_pic) && !url.contains(base64_no_pic_z))
-                    .map(String::from);
 
                 Ok(Course {
                     code,
