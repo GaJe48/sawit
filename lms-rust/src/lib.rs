@@ -509,7 +509,7 @@ impl InternetDataSource {
             LazyLock::new(|| Selector::parse(".user-header p").unwrap());
         static NPM: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".user-body strong").unwrap());
-        static PROGRAM: LazyLock<Selector> =
+        static STUDY: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".Badge-info").unwrap());
         static CLASS: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".pull-right.text-bold").unwrap());
@@ -538,7 +538,7 @@ impl InternetDataSource {
             .to_string();
 
         let study_program = dashboard_html
-            .select(&PROGRAM)
+            .select(&STUDY)
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
@@ -561,7 +561,7 @@ impl InternetDataSource {
                 Html::parse_fragment(&cleaned_html)
                     .select(&IMG)
                     .nth(1)
-                    .and_then(|img_el| img_el.attr("src"))
+                    .and_then(|img| img.attr("src"))
                     .filter(|url| !url.starts_with(no_pic_z))
                     .map(String::from)
             });
@@ -700,59 +700,63 @@ impl InternetDataSource {
     }
 
     fn parse_meetings(dashboard_html: &Html) -> Result<Vec<MeetingEntity>, LmsError> {
-        static TREE_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("ul.treeview-menu").unwrap());
-        static WIDGET_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.box-widget").unwrap());
-        static A_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("ul li a").unwrap());
-        static BADGE_SEL: LazyLock<Selector> =
+        static TREE: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".treeview-menu").unwrap());
+        static CARD: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".box-widget").unwrap());
+        static MEETING: LazyLock<Selector> = LazyLock::new(|| Selector::parse("a").unwrap());
+        static COURSE_CODE: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("span.header_badeg").unwrap());
 
-        let treeviews = dashboard_html.select(&TREE_SEL);
-        let widgets = dashboard_html.select(&WIDGET_SEL);
-
-        let mut meetings = Vec::new();
-
-        for (tree, widget) in treeviews.zip(widgets) {
-            let course_code = widget
-                .select(&BADGE_SEL)
+        let meetings = dashboard_html
+        .select(&TREE)
+        .zip(dashboard_html.select(&CARD))
+        .map(|(tree, card)| {
+            let course_code = card
+                .select(&COURSE_CODE)
                 .next()
-                .and_then(|el| el.text().next()?.split_once(" -"))
-                .ok_or_else(|| LmsError::ParserError { msg: "Failed to parse course code from badge text (expected format '<course_code> - <course_name>')".to_string() })?
-                .0
+                .and_then(|el| el.text().next()?.split(" -").next())
+                .ok_or_else(|| LmsError::ParserError {
+                    msg: "Failed to parse course code from badge text (expected format '<course_code> - <course_name>')".to_string(),
+                })?
                 .to_string();
 
-            for a_tag in tree.select(&A_SEL) {
-                let url = a_tag
-                    .attr("href")
-                    .ok_or_else(|| LmsError::ParserError {
-                        msg: "Meeting link element 'a' is missing the 'href' attribute".into(),
-                    })?
-                    .to_string();
+            tree.select(&MEETING)
+                .map(|a_tag| {
+                    let url = a_tag
+                        .attr("href")
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Meeting link element 'a' is missing the 'href' attribute".into(),
+                        })?
+                        .to_string();
 
-                let number = a_tag
-                    .text()
-                    .nth(1)
-                    .and_then(|s| s.split_once(' ')?.1.parse::<i8>().ok())
-                    .ok_or_else(|| LmsError::ParserError { msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".into() })?;
+                    let number = a_tag
+                        .text()
+                        .nth(1)
+                        .and_then(|s| s.strip_prefix("Pertemuan ")?.parse::<i8>().ok())
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".into(),
+                        })?;
 
-                meetings.push(MeetingEntity {
-                    course_code: course_code.clone(),
-                    url,
-                    number,
-                });
-            }
-        }
-        Ok(meetings)
+                    Ok(MeetingEntity {
+                        course_code: course_code.clone(),
+                        url,
+                        number,
+                    })
+                })
+                .collect::<Result<Vec<_>, LmsError>>()
+        })
+        .collect::<Result<Vec<_>, LmsError>>()?;
+
+        Ok(meetings.into_iter().flatten().collect())
     }
 
     async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
         static CLICK: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("td[onclick^=absensi]").unwrap());
         static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
-        static CELL_CC: LazyLock<Selector> =
+        static COURSE_CODE: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("td:nth-child(2)").unwrap());
-        static CELL_ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
+        static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
 
         let attend_html = self
             .web
@@ -779,7 +783,7 @@ impl InternetDataSource {
                 .select(&ROW)
                 .map(|row| {
                     let course_code = row
-                        .select(&CELL_CC)
+                        .select(&COURSE_CODE)
                         .next()
                         .and_then(|el| el.text().next())
                         .ok_or_else(|| LmsError::ParserError {
@@ -814,7 +818,7 @@ impl InternetDataSource {
                         let parser = Html::parse_document(&html);
 
                         let list = parser
-                            .select(&CELL_ATTEND)
+                            .select(&ATTEND)
                             .enumerate()
                             .map(|(index, cell)| AttendanceEntity {
                                 course_code: course_code.clone(),
@@ -826,7 +830,7 @@ impl InternetDataSource {
                             })
                             .collect::<Vec<_>>();
 
-                        Ok::<Vec<AttendanceEntity>, LmsError>(list)
+                        Ok::<Vec<_>, LmsError>(list)
                     })
                 })
                 .collect::<Result<Vec<_>, LmsError>>()?
@@ -944,12 +948,12 @@ impl InternetDataSource {
     ) -> Result<(AssignmentEntity, Option<Lecturer>), LmsError> {
         static MSG: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
-        static CELL_Q: LazyLock<Selector> =
+        static QUESTION: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default a").unwrap());
         static DEADLINE: LazyLock<Selector> = LazyLock::new(|| {
             Selector::parse("div.callout-white-default tr:nth-child(3) td").unwrap()
         });
-        static CELL_A: LazyLock<Selector> =
+        static ANSWER: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-warning a").unwrap());
         static NAME: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".user-block a").unwrap());
@@ -975,7 +979,7 @@ impl InternetDataSource {
             .map(String::from);
 
         let question_url = document
-            .select(&CELL_Q)
+            .select(&QUESTION)
             .next()
             .and_then(|el| extract_file_url(el));
 
@@ -989,7 +993,7 @@ impl InternetDataSource {
             .to_string();
 
         let answer_url = document
-            .select(&CELL_A)
+            .select(&ANSWER)
             .next()
             .and_then(|el| extract_file_url(el));
 
@@ -1029,7 +1033,7 @@ impl InternetDataSource {
     }
 }
 
-static REC_MODEL: std::sync::LazyLock<ocr_rs::RecModel> = std::sync::LazyLock::new(|| {
+static REC_MODEL: LazyLock<ocr_rs::RecModel> = LazyLock::new(|| {
     let model_bytes = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/en_PP-OCRv5_mobile_rec_infer.mnn"
