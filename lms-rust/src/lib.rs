@@ -80,8 +80,8 @@ struct AssignmentEntity {
     meeting_url: String,
     url: String,
     message: Option<String>,
-    assign_file_url: Option<String>,
-    view_submit_file_url: Option<String>,
+    question_url: Option<String>,
+    answer_url: Option<String>,
     deadline: String,
     is_submitted: bool,
     is_overdue: bool,
@@ -171,7 +171,7 @@ impl InternetDataSource {
             .into_iter()
             .partition(|content| content.content_type == "fa-suitcase");
 
-        let (assignments, lecturers): (Vec<AssignmentEntity>, Vec<Option<Lecturer>>) =
+        let (assignments, lecturers): (Vec<_>, Vec<_>) =
             try_join_all(suitcase_contents.iter().map(|assignment| {
                 self.scrape_assignment(&assignment.meeting_url, &assignment.url)
             }))
@@ -186,10 +186,7 @@ impl InternetDataSource {
             .collect();
 
         for course in &mut courses {
-            if course.lecturer_profile_picture_url.is_none() {
-                course.lecturer_profile_picture_url =
-                    lecturer_map.get(&course.lecturer_name).cloned();
-            }
+            course.lecturer_profile_picture_url = lecturer_map.get(&course.lecturer_name).cloned();
         }
 
         Ok(LmsEntity {
@@ -959,6 +956,20 @@ impl InternetDataSource {
         fk_meeting_url: &str,
         pk_assignment_url: &str,
     ) -> Result<(AssignmentEntity, Option<Lecturer>), LmsError> {
+        static MSG: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
+        static CELL_Q: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default a").unwrap());
+        static DEADLINE: LazyLock<Selector> = LazyLock::new(|| {
+            Selector::parse("div.callout-white-default tr:nth-child(3) td").unwrap()
+        });
+        static CELL_A: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-warning a").unwrap());
+        static NAME: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".user-block a").unwrap());
+        static IMAGE: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse(".user-block img").unwrap());
+
         let html = self
             .web
             .get(pk_assignment_url)
@@ -971,84 +982,63 @@ impl InternetDataSource {
 
         let document = Html::parse_document(&html);
 
-        static MSG_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div[style*=padding-left]").unwrap());
-        static DEFAULT_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.callout-white-default").unwrap());
-        static WARNING_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.callout-white-warning").unwrap());
-        static DEADLINE_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.callout-white-default table tr td").unwrap());
-        static USER_BLOCK_SEL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.user-block").unwrap());
-        static NAME_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("span").unwrap());
-        static IMAGE_SEL: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
-
         let message = document
-            .select(&MSG_SEL)
+            .select(&MSG)
             .next()
-            .and_then(|element| element.text().next())
+            .and_then(|el| el.text().next())
             .map(String::from);
 
-        let assign_file_url = document
-            .select(&DEFAULT_SEL)
+        let question_url = document
+            .select(&CELL_Q)
             .next()
             .and_then(|el| extract_file_url(el));
 
         let deadline = document
-            .select(&DEADLINE_SEL)
-            .nth(2)
+            .select(&DEADLINE)
+            .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
                 msg: "Deadline text not found".into(),
             })?
             .to_string();
 
-        let view_submit_file_url = document
-            .select(&WARNING_SEL)
+        let answer_url = document
+            .select(&CELL_A)
             .next()
             .and_then(|el| extract_file_url(el));
 
         let is_submitted = html.contains("Sudah Submit");
-        let is_expired = html.contains("Waktu Submit sudah berakhir");
+        let is_overdue = html.contains("Waktu Submit sudah berakhir");
 
-        let lecturer_opt = document
-            .select(&USER_BLOCK_SEL)
+        let name = document
+            .select(&NAME)
             .next()
-            .and_then(|user_block| {
-                let name = user_block
-                    .select(&NAME_SEL)
-                    .next()?
-                    .text()
-                    .next()?
-                    .split(',')
-                    .next()?
-                    .to_string();
+            .and_then(|el| el.text().next()?.split(',').next())
+            .map(String::from);
 
-                let profile_picture_url = user_block
-                    .select(&IMAGE_SEL)
-                    .next()?
-                    .attr("src")?
-                    .to_string();
+        let profile_picture_url = document
+            .select(&IMAGE)
+            .next()
+            .and_then(|el| el.attr("src"))
+            .map(String::from);
 
-                Some(Lecturer {
-                    name,
-                    profile_picture_url,
-                })
-            });
+        let lecturer = name.zip(profile_picture_url).map(|(n, p)| Lecturer {
+            name: n,
+            profile_picture_url: p,
+        });
 
         Ok((
             AssignmentEntity {
                 meeting_url: fk_meeting_url.to_string(),
                 url: pk_assignment_url.to_string(),
                 message,
-                assign_file_url,
+                question_url,
                 deadline,
-                view_submit_file_url,
+                answer_url,
                 is_submitted,
-                is_overdue: is_expired,
+                is_overdue,
             },
-            lecturer_opt,
+            lecturer,
         ))
     }
 }
@@ -1099,46 +1089,28 @@ async fn solve_captcha(bytes: bytes::Bytes) -> Result<String, LmsError> {
     })?
 }
 
-fn extract_file_url(container: ElementRef) -> Option<String> {
-    static PDF_SEL: LazyLock<Selector> =
-        LazyLock::new(|| Selector::parse("a[onclick*=lihat_pdf]").unwrap());
-    static PICT_SEL: LazyLock<Selector> =
-        LazyLock::new(|| Selector::parse("a[onclick*=lihat_gambar]").unwrap());
-    static OTHER_SEL: LazyLock<Selector> =
-        LazyLock::new(|| Selector::parse("a[href*=force_download]").unwrap());
+fn extract_file_url(a_tag: ElementRef) -> Option<String> {
+    if let Some(onclick) = a_tag.attr("onclick") {
+        for media_type in ["lihat_pdf", "lihat_gambar"] {
+            if !onclick.starts_with(media_type) {
+                continue;
+            }
 
-    // Cek PDF
-    if let Some(id) = container.select(&PDF_SEL).next().and_then(|a| {
-        let onclick = a.attr("onclick")?;
-        onclick.split('\'').nth(1)
-    }) {
-        return Some(format!(
-            "https://lms.unindra.ac.id/media_public/lihat_pdf/{}",
-            id
-        ));
+            let Some(id) = onclick.split('\'').nth(1) else {
+                continue;
+            };
+
+            return Some(format!(
+                "https://lms.unindra.ac.id/media_public/{}/{}",
+                media_type, id
+            ));
+        }
     }
 
-    // Cek Gambar
-    if let Some(id) = container.select(&PICT_SEL).next().and_then(|a| {
-        let onclick = a.attr("onclick")?;
-        onclick.split('\'').nth(1)
-    }) {
-        return Some(format!(
-            "https://lms.unindra.ac.id/media_public/lihat_gambar/{}",
-            id
-        ));
-    }
-
-    // Cek Lainnya
-    if let Some(href) = container
-        .select(&OTHER_SEL)
-        .next()
-        .and_then(|a| a.attr("href"))
-    {
-        return Some(href.to_string());
-    }
-
-    None
+    a_tag
+        .attr("href")
+        .filter(|href| href.starts_with("https://lms.unindra.ac.id/pertemuan/force_download"))
+        .map(String::from)
 }
 
 fn format_title_case(s: &str) -> String {
