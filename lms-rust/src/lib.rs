@@ -57,13 +57,13 @@ struct Lecturer {
 struct MeetingEntity {
     course_code: String,
     url: String,
-    number: i8,
+    number: u8,
 }
 
 #[derive(Debug, uniffi::Record)]
 struct AttendanceEntity {
     course_code: String,
-    index: i8,
+    index: u8,
     is_attended: bool,
 }
 
@@ -732,7 +732,7 @@ impl InternetDataSource {
                     let number = a_tag
                         .text()
                         .nth(1)
-                        .and_then(|s| s.strip_prefix("Pertemuan ")?.parse::<i8>().ok())
+                        .and_then(|s| s.strip_prefix("Pertemuan ")?.parse::<u8>().ok())
                         .ok_or_else(|| LmsError::ParserError {
                             msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".into(),
                         })?;
@@ -817,12 +817,11 @@ impl InternetDataSource {
 
                         let parser = Html::parse_document(&html);
 
-                        let list = parser
-                            .select(&ATTEND)
-                            .enumerate()
+                        let list = (1u8..)
+                            .zip(parser.select(&ATTEND))
                             .map(|(index, cell)| AttendanceEntity {
                                 course_code: course_code.clone(),
-                                index: index as i8 + 1,
+                                index,
                                 is_attended: cell
                                     .value()
                                     .classes()
@@ -1045,9 +1044,13 @@ static REC_MODEL: LazyLock<ocr_rs::RecModel> = LazyLock::new(|| {
 
 async fn solve_captcha(bytes: bytes::Bytes) -> Result<String, LmsError> {
     tokio::task::spawn_blocking(move || {
-        let image = image::load_from_memory(&bytes).map_err(|e| LmsError::ParserError {
+        let mut image = image::load_from_memory(&bytes).map_err(|e| LmsError::ParserError {
             msg: format!("Failed to load captcha image: {}", e),
         })?;
+
+        image = image.crop(47, 16, 48, 14);
+        image = image.grayscale();
+        image.invert();
 
         let raw_text = REC_MODEL
             .recognize_text(&image)
@@ -1055,23 +1058,39 @@ async fn solve_captcha(bytes: bytes::Bytes) -> Result<String, LmsError> {
                 msg: format!("OCR text recognition failed: {:?}", e),
             })?;
 
-        let (val1, val2) = raw_text
-            .split_once("+")
-            .and_then(|(left, right)| {
-                let left_val = left.trim().parse::<i8>().ok()?;
-                let right_val = right
-                    .split_once('=')
-                    .map(|(r, _)| r)?
-                    .trim()
-                    .parse::<i8>()
-                    .ok()?;
-                Some((left_val, right_val))
-            })
-            .ok_or_else(|| LmsError::ParserError {
-                msg: format!("Failed to parse captcha equation from: {}", raw_text),
-            })?;
+        let mut left_str = String::with_capacity(2);
+        let mut right_str = String::with_capacity(2);
+        let mut is_left = true;
 
-        Ok((val1 + val2).to_string())
+        for c in raw_text.chars() {
+            if !c.is_ascii_digit() {
+                is_left = false;
+                continue;
+            }
+
+            if is_left {
+                if left_str.is_empty() || c == '0' {
+                    left_str.push(c);
+                } else {
+                    is_left = false;
+                    if c != '1' && c != '4' {
+                        right_str.push(c);
+                    }
+                }
+            } else {
+                right_str.push(c);
+            }
+        }
+
+        let left_val: u8 = left_str.parse().map_err(|_| LmsError::ParserError {
+            msg: format!("Failed to parse left number. Raw OCR: '{}'", raw_text),
+        })?;
+
+        let right_val: u8 = right_str.parse().map_err(|_| LmsError::ParserError {
+            msg: format!("Failed to parse right number. Raw OCR: '{}'", raw_text),
+        })?;
+
+        Ok((left_val + right_val).to_string())
     })
     .await
     .map_err(|e| LmsError::ParserError {
@@ -1137,6 +1156,44 @@ mod tests {
         println!("captcha answer: {answer}");
 
         assert!(answer == "7");
+    }
+
+    #[tokio::test]
+    #[ignore = "membutuhkan jaringan, captcha OCR, dan model OCR; jalankan manual dengan --ignored --nocapture"]
+    async fn test_ocr_accuracy_and_raw_output() {
+        let client = reqwest::Client::builder().build().unwrap();
+
+        println!("=== Running OCR Model 10 Times (fetching new captcha each iteration) ===");
+        for i in 1..=100 {
+            let start = std::time::Instant::now();
+            let response = client
+                .get("https://lms.unindra.ac.id/kapca")
+                .send()
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap();
+
+            let mut image = image::load_from_memory(&response).unwrap();
+
+            image = image.crop(47, 16, 48, 14);
+
+            image = image.grayscale();
+
+            image.invert();
+
+            let raw_text = REC_MODEL.recognize_text(&image).unwrap();
+            let duration = start.elapsed();
+            let answer = solve_captcha(response).await.unwrap();
+            println!(
+                "Iteration {:02}: Raw OCR Output = {:?}, Answer = {:?}, Duration = {:?}",
+                i, raw_text, answer, duration
+            );
+
+            let _ = image.save(concat!(env!("CARGO_MANIFEST_DIR"),"/apa.png"));
+        }
+        println!("=======================================================================");
     }
 
     #[tokio::test]
