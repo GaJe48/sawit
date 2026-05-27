@@ -9,7 +9,7 @@ data class Student(
     val npm: String,
     val studentName: String,
     val studyProgram: String,
-    val classCode: String,
+    val classCode: String?,
     val studentProfilePictureUrl: String?,
 )
 
@@ -40,7 +40,7 @@ data class AttendanceVmData(
 )
 
 data class Meeting(
-    val meetingNumber: Byte,
+    val meetingNumber: UByte,
     val meetingUrl: String,
 )
 

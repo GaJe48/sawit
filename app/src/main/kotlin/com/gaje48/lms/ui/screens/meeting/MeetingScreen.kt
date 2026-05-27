@@ -309,7 +309,7 @@ fun MeetingScreen(
 
 @Composable
 fun MeetingCard(
-    index: Byte,
+    index: UByte,
     onMeetingClick: () -> Unit,
 ) {
     Card(

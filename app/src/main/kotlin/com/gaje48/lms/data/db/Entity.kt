@@ -10,7 +10,7 @@ data class StudentEntity(
     @PrimaryKey val npm: String,
     val studentName: String,
     val studyProgram: String,
-    val classCode: String,
+    val classCode: String?,
     val studentProfilePictureUrl: String?,
 )
 

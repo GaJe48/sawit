@@ -48,11 +48,6 @@ struct Course {
     lecturer_profile_picture_url: Option<String>,
 }
 
-struct Lecturer {
-    name: String,
-    profile_picture_url: String,
-}
-
 #[derive(Debug, uniffi::Record)]
 struct MeetingEntity {
     course_code: String,
@@ -165,28 +160,38 @@ impl InternetDataSource {
         )
         .await?;
 
-        let all_contents: Vec<ContentEntity> = content_results.into_iter().flatten().collect();
-
-        let (suitcase_contents, regular_contents): (Vec<_>, Vec<_>) = all_contents
-            .into_iter()
-            .partition(|content| content.content_type == "fa-suitcase");
-
-        let (assignments, lecturers): (Vec<_>, Vec<_>) =
-            try_join_all(suitcase_contents.iter().map(|assignment| {
-                self.scrape_assignment(&assignment.meeting_url, &assignment.url)
-            }))
-            .await?
-            .into_iter()
-            .unzip();
-
-        let lecturer_map: HashMap<String, String> = lecturers
+        let (suitcase_contents, regular_contents): (Vec<_>, Vec<_>) = content_results
             .into_iter()
             .flatten()
-            .map(|lecturer| (lecturer.name, lecturer.profile_picture_url))
-            .collect();
+            .partition(|content| content.content_type == "fa-suitcase");
+
+        let scrape_results = try_join_all(
+            suitcase_contents
+                .into_iter()
+                .map(|assignment| self.scrape_assignment(assignment.meeting_url, assignment.url)),
+        )
+        .await?;
+
+        let capacity = scrape_results.len();
+
+        let (assignments, lecturer_map) = scrape_results.into_iter().fold(
+            (Vec::with_capacity(capacity), HashMap::new()),
+            |(mut assigs, mut map), (assignment, lecturer_opt)| {
+                assigs.push(assignment);
+
+                if let Some((name, pic_url)) = lecturer_opt {
+                    map.insert(name, pic_url);
+                }
+
+                (assigs, map)
+            },
+        );
 
         for course in &mut courses {
-            course.lecturer_profile_picture_url = lecturer_map.get(&course.lecturer_name).cloned();
+            if course.lecturer_profile_picture_url.is_none() {
+                course.lecturer_profile_picture_url =
+                    lecturer_map.get(&course.lecturer_name).cloned();
+            }
         }
 
         Ok(LmsEntity {
@@ -503,7 +508,7 @@ impl InternetDataSource {
     }
 
     fn parse_student(dashboard_html: &Html) -> Result<Student, LmsError> {
-        let no_pic_z = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        const NO_PIC_Z: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
         static NAME: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".user-header p").unwrap());
@@ -562,7 +567,7 @@ impl InternetDataSource {
                     .select(&IMG)
                     .nth(1)
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| !url.starts_with(no_pic_z))
+                    .filter(|url| !url.starts_with(NO_PIC_Z))
                     .map(String::from)
             });
 
@@ -576,8 +581,8 @@ impl InternetDataSource {
     }
 
     fn parse_courses(dashboard_html: &Html) -> Result<Vec<Course>, LmsError> {
-        let no_pic = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
-        let no_pic_z = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
+        const NO_PIC_Z: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
         static CARD: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".box-widget").unwrap());
         static LECTURER: LazyLock<Selector> = LazyLock::new(|| Selector::parse("h3").unwrap());
@@ -610,7 +615,7 @@ impl InternetDataSource {
                     .select(&IMG)
                     .next()
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| *url != no_pic && !url.starts_with(no_pic_z))
+                    .filter(|url| *url != NO_PIC && !url.starts_with(NO_PIC_Z))
                     .map(String::from);
 
                 let mut spans = el.select(&INFO);
@@ -938,9 +943,11 @@ impl InternetDataSource {
 
     async fn scrape_assignment(
         &self,
-        fk_meeting_url: &str,
-        pk_assignment_url: &str,
-    ) -> Result<(AssignmentEntity, Option<Lecturer>), LmsError> {
+        fk_meeting_url: String,
+        pk_assignment_url: String,
+    ) -> Result<(AssignmentEntity, Option<(String, String)>), LmsError> {
+        const BASE64_NO_PIC_A: &str = "dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
+
         static MSG: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
         static QUESTION: LazyLock<Selector> =
@@ -957,7 +964,7 @@ impl InternetDataSource {
 
         let html = self
             .web
-            .get(pk_assignment_url)
+            .get(&pk_assignment_url)
             .send()
             .await
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
@@ -1005,17 +1012,15 @@ impl InternetDataSource {
             .select(&IMAGE)
             .next()
             .and_then(|el| el.attr("src"))
+            .filter(|url| !url.ends_with(BASE64_NO_PIC_A))
             .map(String::from);
 
-        let lecturer = name.zip(profile_picture_url).map(|(n, p)| Lecturer {
-            name: n,
-            profile_picture_url: p,
-        });
+        let lecturer_key_value = name.zip(profile_picture_url);
 
         Ok((
             AssignmentEntity {
-                meeting_url: fk_meeting_url.to_string(),
-                url: pk_assignment_url.to_string(),
+                meeting_url: fk_meeting_url,
+                url: pk_assignment_url,
                 message,
                 question_url,
                 deadline,
@@ -1023,7 +1028,7 @@ impl InternetDataSource {
                 is_submitted,
                 is_overdue,
             },
-            lecturer,
+            lecturer_key_value,
         ))
     }
 }
@@ -1062,7 +1067,16 @@ async fn solve_captcha(bytes: bytes::Bytes) -> Result<u8, LmsError> {
             .filter_map(|s| s.parse::<u8>().ok())
             .collect();
 
-        Ok(numbers[0] + numbers[1])
+        if numbers.len() >= 2 {
+            Ok(numbers[0] + numbers[1])
+        } else {
+            Err(LmsError::ParserError {
+                msg: format!(
+                    "OCR gagal mengekstrak 2 angka. Hasil raw text: '{}'",
+                    raw_text
+                ),
+            })
+        }
     })
     .await
     .map_err(|e| LmsError::ParserError {
@@ -1133,10 +1147,10 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "membutuhkan jaringan, captcha OCR, dan model OCR; jalankan manual dengan --ignored --nocapture"]
-    async fn test_ocr_accuracy_and_raw_output() {
+    async fn test_ocr_captcha_raw_output() {
         let client = reqwest::Client::builder().build().unwrap();
 
-        println!("=== Running OCR Model 10 Times (fetching new captcha each iteration) ===");
+        println!("=== Running OCR Model 100 Times (fetching new captcha each iteration) ===");
         for i in 1..=100 {
             let start = std::time::Instant::now();
             let response = client
@@ -1167,6 +1181,30 @@ mod tests {
             let _ = image.save(concat!(env!("CARGO_MANIFEST_DIR"), "/apa.png"));
         }
         println!("=======================================================================");
+    }
+
+    #[tokio::test]
+    #[ignore = "membutuhkan jaringan, captcha OCR, dan model OCR; jalankan manual dengan --ignored --nocapture"]
+    async fn test_ocr_raw_output() {
+        let client = reqwest::Client::builder().build().unwrap();
+
+        let response = client
+            .get("https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==")
+            .send()
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
+
+        let mut image = image::load_from_memory(&response).unwrap();
+
+        image = image.grayscale();
+
+        image.invert();
+
+        let raw_text = REC_MODEL.recognize_text(&image).unwrap();
+        println!("Answer: {:?}", raw_text);
     }
 
     #[tokio::test]
@@ -1373,8 +1411,8 @@ mod tests {
             .await;
 
         let result = internet_data_source.scrape_assignment(
-            "https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=",
-            "https://lms.unindra.ac.id/member_tugas/kelas/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoTGRJUzJxc3FQTDNIQ0thK0hmc3A4cUhSRVZOL0tiLy9ic09xWmJNM0VnRHc2anlhMnFDN0YzbVA0aDFWcnltRGwxMW04ZFBLNjF2MU9BdDU1OVBrcGc9"
+            "https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=".to_string(),
+            "https://lms.unindra.ac.id/member_tugas/kelas/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoTGRJUzJxc3FQTDNIQ0thK0hmc3A4cUhSRVZOL0tiLy9ic09xWmJNM0VnRHc2anlhMnFDN0YzbVA0aDFWcnltRGwxMW04ZFBLNjF2MU9BdDU1OVBrcGc9".to_string()
         ).await.unwrap().0;
 
         println!("{:#?}", result);

@@ -27,7 +27,7 @@ fun CourseEntity.toDomain() =
 
 fun MeetingEntity.toDomain() =
     Meeting(
-        meetingNumber = meetingNumber,
+        meetingNumber = meetingNumber.toUByte(),
         meetingUrl = meetingUrl,
     )
 
@@ -56,13 +56,13 @@ fun uniffi.lms_rust.MeetingEntity.toEntity() =
     MeetingEntity(
         url,
         courseCode,
-        number,
+        number.toByte(),
     )
 
 fun uniffi.lms_rust.AttendanceEntity.toEntity() =
     AttendanceEntity(
         courseCode,
-        index,
+        index.toByte(),
         isAttended,
     )
 
@@ -79,8 +79,8 @@ fun uniffi.lms_rust.AssignmentEntity.toEntity() =
         url,
         meetingUrl,
         message,
-        assignFileUrl,
-        viewSubmitFileUrl,
+        questionUrl,
+        answerUrl,
         deadline,
         isSubmitted,
         isOverdue,
