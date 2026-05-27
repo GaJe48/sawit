@@ -111,6 +111,14 @@ enum LmsError {
     ParserError { msg: String },
 }
 
+impl From<reqwest::Error> for LmsError {
+    fn from(err: reqwest::Error) -> Self {
+        LmsError::NetworkError {
+            msg: err.to_string(),
+        }
+    }
+}
+
 #[uniffi::export(callback_interface)]
 #[async_trait::async_trait]
 trait DownloadCallback: Send + Sync {
@@ -137,11 +145,9 @@ impl InternetDataSource {
             self.web
                 .get("https://lms.unindra.ac.id/member")
                 .send()
-                .await
-                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+                .await?
                 .text()
                 .await
-                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })
         };
 
         let attendances_future = self.fetch_attendances();
@@ -204,48 +210,107 @@ impl InternetDataSource {
         })
     }
 
+    async fn fetch_assignment(
+        &self,
+        fk_meeting_url: String,
+        pk_assignment_url: String,
+    ) -> Result<AssignmentEntity, LmsError> {
+        static MSG: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
+        static QUESTION: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default a").unwrap());
+        static DEADLINE: LazyLock<Selector> = LazyLock::new(|| {
+            Selector::parse("div.callout-white-default tr:nth-child(3) td").unwrap()
+        });
+        static ANSWER: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-warning a").unwrap());
+
+        let html = self
+            .web
+            .get(&pk_assignment_url)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let document = Html::parse_document(&html);
+
+        let message = document
+            .select(&MSG)
+            .next()
+            .and_then(|el| el.text().next())
+            .map(String::from);
+
+        let question_url = document
+            .select(&QUESTION)
+            .next()
+            .and_then(|el| extract_file_url(el));
+
+        let deadline = document
+            .select(&DEADLINE)
+            .next()
+            .and_then(|el| el.text().next())
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Deadline text not found".into(),
+            })?
+            .to_string();
+
+        let answer_url = document
+            .select(&ANSWER)
+            .next()
+            .and_then(|el| extract_file_url(el));
+
+        let is_submitted = html.contains("Sudah Submit");
+        let is_overdue = html.contains("Waktu Submit sudah berakhir");
+
+        Ok(AssignmentEntity {
+            meeting_url: fk_meeting_url,
+            url: pk_assignment_url,
+            message,
+            question_url,
+            deadline,
+            answer_url,
+            is_submitted,
+            is_overdue,
+        })
+    }
+
     async fn cookie_renewed(&self, nim: String, pwd: String) -> Result<(), LmsError> {
+        static INPUT_SEL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("[type=hidden]").unwrap());
+
         let html = self
             .web
             .get("https://lms.unindra.ac.id/login_new")
             .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+            .await?
             .text()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+            .await?;
 
         let (t_csrf, random_name, random_value) = {
-            static INPUT_SEL: LazyLock<Selector> =
-                LazyLock::new(|| Selector::parse("input[type=hidden]").unwrap());
             let document = Html::parse_document(&html);
+
             let mut inputs = document.select(&INPUT_SEL);
 
-            let csrf_input = inputs.next().ok_or_else(|| LmsError::ParserError {
-                msg: "CSRF token hidden input field not found".into(),
-            })?;
-            let t = csrf_input
-                .attr("value")
+            let t = inputs
+                .next()
+                .and_then(|el| el.attr("value"))
                 .ok_or_else(|| LmsError::ParserError {
-                    msg: "CSRF token hidden input field is missing 'value' attribute".into(),
+                    msg: "CSRF token hidden input field not found".into(),
                 })?
                 .to_string();
 
-            let random_check_input = inputs.next().ok_or_else(|| LmsError::ParserError {
-                msg: "Random check hidden input field not found".into(),
-            })?;
-            let rn = random_check_input
-                .attr("name")
+            let (rn, rv) = inputs
+                .next()
+                .and_then(|el| {
+                    let rn = el.attr("name")?.to_string();
+                    let rv = el.attr("value")?.to_string();
+
+                    Some((rn, rv))
+                })
                 .ok_or_else(|| LmsError::ParserError {
-                    msg: "Random check hidden input field is missing 'name' attribute".into(),
-                })?
-                .to_string();
-            let rv = random_check_input
-                .attr("value")
-                .ok_or_else(|| LmsError::ParserError {
-                    msg: "Random check hidden input field is missing 'value' attribute".into(),
-                })?
-                .to_string();
+                    msg: "Random check hidden input field not found".into(),
+                })?;
 
             (t, rn, rv)
         };
@@ -254,11 +319,9 @@ impl InternetDataSource {
             .web
             .get("https://lms.unindra.ac.id/kapca")
             .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+            .await?
             .bytes()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+            .await?;
 
         let kapca_answer = solve_captcha(bytes).await?.to_string();
 
@@ -275,11 +338,9 @@ impl InternetDataSource {
             .post("https://lms.unindra.ac.id/login_new")
             .form(&form_data)
             .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+            .await?
             .text()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+            .await?;
 
         if response.contains("Username atau password salah") {
             return Err(LmsError::CredentialError);
@@ -321,12 +382,7 @@ impl InternetDataSource {
         raw_file_name: String,
         callback: Box<dyn DownloadCallback>,
     ) -> Result<String, LmsError> {
-        let mut response = self
-            .web
-            .get(&file_url)
-            .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+        let mut response = self.web.get(&file_url).send().await?;
 
         if !response.status().is_success() {
             return Err(LmsError::NetworkError {
@@ -361,11 +417,7 @@ impl InternetDataSource {
         let mut tokio_file = tokio::fs::File::from_std(file);
 
         let mut downloaded = 0u64;
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
-        {
+        while let Some(chunk) = response.chunk().await? {
             tokio_file
                 .write_all(&chunk)
                 .await
@@ -394,15 +446,7 @@ impl InternetDataSource {
         fd: i32,
         callback: Box<dyn UploadCallback>,
     ) -> Result<String, LmsError> {
-        let html_form = self
-            .web
-            .get(&task_url)
-            .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
-            .text()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+        let html_form = self.web.get(&task_url).send().await?.text().await?;
 
         let (id_tugas, h_kode, id_aktifitas) = {
             static ID_TUGAS_SEL: LazyLock<Selector> =
@@ -480,8 +524,7 @@ impl InternetDataSource {
             .post("https://lms.unindra.ac.id/member_tugas/mhs_upload_file_proses")
             .multipart(form)
             .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+            .await?;
 
         if res.status().is_success() {
             callback_arc.on_progress(file_name.clone(), 1.0);
@@ -765,11 +808,9 @@ impl InternetDataSource {
             .web
             .get("https://lms.unindra.ac.id/presensi")
             .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+            .await?
             .text()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+            .await?;
 
         let futures = {
             let attend_parser = Html::parse_document(&attend_html);
@@ -810,11 +851,9 @@ impl InternetDataSource {
                             .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
                             .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
                             .send()
-                            .await
-                            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+                            .await?
                             .text()
-                            .await
-                            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+                            .await?;
 
                         let parser = Html::parse_document(&html);
 
@@ -848,15 +887,7 @@ impl InternetDataSource {
             LazyLock::new(|| Selector::parse("a:nth-child(2)").unwrap());
         static ICON: LazyLock<Selector> = LazyLock::new(|| Selector::parse("i").unwrap());
 
-        let html = self
-            .web
-            .get(meeting_url)
-            .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
-            .text()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+        let html = self.web.get(meeting_url).send().await?.text().await?;
 
         let futures = {
             let document = Html::parse_document(&html);
@@ -913,14 +944,7 @@ impl InternetDataSource {
                     Ok(async move {
                         let real_link = if link.starts_with("https://lms.unindra.ac.id/member_url")
                         {
-                            client
-                                .get(&link)
-                                .send()
-                                .await
-                                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
-                                .text()
-                                .await
-                                .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+                            client.get(&link).send().await?.text().await?
                         } else {
                             link
                         };
@@ -966,11 +990,9 @@ impl InternetDataSource {
             .web
             .get(&pk_assignment_url)
             .send()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
+            .await?
             .text()
-            .await
-            .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
+            .await?;
 
         let document = Html::parse_document(&html);
 
