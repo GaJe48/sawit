@@ -751,11 +751,9 @@ impl InternetDataSource {
     }
 
     async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
-        static CLICK: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("td[onclick^=absensi]").unwrap());
         static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
-        static COURSE_CODE: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("td:nth-child(2)").unwrap());
+        static CELL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("td:nth-child(n+2):nth-child(-n+8)").unwrap());
         static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
 
         let attend_html = self
@@ -771,19 +769,12 @@ impl InternetDataSource {
         let futures = {
             let attend_parser = Html::parse_document(&attend_html);
 
-            let Some(nim_id) = attend_parser
-                .select(&CLICK)
-                .next()
-                .and_then(|el| el.attr("onclick")?.split('\'').nth(3))
-            else {
-                return Ok(Vec::new());
-            };
-
             attend_parser
                 .select(&ROW)
                 .map(|row| {
-                    let course_code = row
-                        .select(&COURSE_CODE)
+                    let mut cells = row.select(&CELL);
+
+                    let course_code = cells
                         .next()
                         .and_then(|el| el.text().next())
                         .ok_or_else(|| LmsError::ParserError {
@@ -792,22 +783,27 @@ impl InternetDataSource {
                         .trim()
                         .to_string();
 
-                    let kode_jadwal_id = row
-                        .select(&CLICK)
+                    let (kode_jadwal_id, nim_id) = cells
                         .next()
-                        .and_then(|el| el.attr("onclick")?.split('\'').nth(1))
+                        .and_then(|el| {
+                            let mut parts = el.attr("onclick")?.split('\'');
+
+                            let kode = parts.nth(1)?.to_string();
+                            let nim = parts.nth(1)?.to_string();
+
+                            Some((kode, nim))
+                        })
                         .ok_or_else(|| LmsError::ParserError {
-                            msg: "Gagal memparsing kode jadwal".to_string(),
-                        })?
-                        .to_string();
+                            msg: "Gagal memparsing kode_jadwal_id dan nim_id dari onclick"
+                                .to_string(),
+                        })?;
 
                     let client = &self.web;
-                    let nim = nim_id.to_string();
 
                     Ok(async move {
                         let html = client
                             .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
-                            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim)])
+                            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
                             .send()
                             .await
                             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?
@@ -1125,7 +1121,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "membutuhkan file captcha dan model OCR; jalankan manual dengan --ignored --nocapture"]
     async fn solve_captcha_local() {
-        let captcha = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/captcha.png")).unwrap();
+        let captcha =
+            std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/captcha.png")).unwrap();
         let captcha_bytes = bytes::Bytes::from(captcha);
         let answer = solve_captcha(captcha_bytes).await.unwrap();
 
@@ -1399,7 +1396,8 @@ mod tests {
 
         let result = internet_data_source.fetch_all().await.unwrap();
 
-        std::fs::write("target/lms_result.txt", format!("{:#?}", result)).expect("Gagal menulis ke file");
+        std::fs::write("target/lms_result.txt", format!("{:#?}", result))
+            .expect("Gagal menulis ke file");
         println!("Data berhasil ditulis ke target/lms_result.txt");
 
         assert!(
