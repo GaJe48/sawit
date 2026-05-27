@@ -199,7 +199,7 @@ impl InternetDataSource {
         })
     }
 
-    async fn cookie_renewed(&self, nim: &str, pwd: &str) -> Result<(), LmsError> {
+    async fn cookie_renewed(&self, nim: String, pwd: String) -> Result<(), LmsError> {
         let html = self
             .web
             .get("https://lms.unindra.ac.id/login_new")
@@ -255,13 +255,13 @@ impl InternetDataSource {
             .await
             .map_err(|e| LmsError::NetworkError { msg: e.to_string() })?;
 
-        let kapca_answer = solve_captcha(bytes).await?;
+        let kapca_answer = solve_captcha(bytes).await?.to_string();
 
         let form_data = [
             ("csrf_token", t_csrf),
             (&random_name, random_value),
-            ("username", nim.to_string()),
-            ("pswd", pwd.to_string()),
+            ("username", nim),
+            ("pswd", pwd),
             ("kapca", kapca_answer),
         ];
 
@@ -1035,14 +1035,17 @@ impl InternetDataSource {
 static REC_MODEL: LazyLock<ocr_rs::RecModel> = LazyLock::new(|| {
     let model_bytes = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/en_PP-OCRv5_mobile_rec_infer.mnn"
+        "/assets/model/en_PP-OCRv5_mobile_rec_infer.mnn"
     ));
-    let charset_bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/ppocr_keys_en.txt"));
+    let charset_bytes = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/assets/model/ppocr_keys_en.txt"
+    ));
 
     ocr_rs::RecModel::from_bytes_with_charset(model_bytes, charset_bytes, None).unwrap()
 });
 
-async fn solve_captcha(bytes: bytes::Bytes) -> Result<String, LmsError> {
+async fn solve_captcha(bytes: bytes::Bytes) -> Result<u8, LmsError> {
     tokio::task::spawn_blocking(move || {
         let mut image = image::load_from_memory(&bytes).map_err(|e| LmsError::ParserError {
             msg: format!("Failed to load captcha image: {}", e),
@@ -1058,39 +1061,12 @@ async fn solve_captcha(bytes: bytes::Bytes) -> Result<String, LmsError> {
                 msg: format!("OCR text recognition failed: {:?}", e),
             })?;
 
-        let mut left_str = String::with_capacity(2);
-        let mut right_str = String::with_capacity(2);
-        let mut is_left = true;
+        let numbers: Vec<u8> = raw_text
+            .split(|c: char| !c.is_ascii_digit())
+            .filter_map(|s| s.parse::<u8>().ok())
+            .collect();
 
-        for c in raw_text.chars() {
-            if !c.is_ascii_digit() {
-                is_left = false;
-                continue;
-            }
-
-            if is_left {
-                if left_str.is_empty() || c == '0' {
-                    left_str.push(c);
-                } else {
-                    is_left = false;
-                    if c != '1' && c != '4' {
-                        right_str.push(c);
-                    }
-                }
-            } else {
-                right_str.push(c);
-            }
-        }
-
-        let left_val: u8 = left_str.parse().map_err(|_| LmsError::ParserError {
-            msg: format!("Failed to parse left number. Raw OCR: '{}'", raw_text),
-        })?;
-
-        let right_val: u8 = right_str.parse().map_err(|_| LmsError::ParserError {
-            msg: format!("Failed to parse right number. Raw OCR: '{}'", raw_text),
-        })?;
-
-        Ok((left_val + right_val).to_string())
+        Ok(numbers[0] + numbers[1])
     })
     .await
     .map_err(|e| LmsError::ParserError {
@@ -1149,13 +1125,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "membutuhkan file captcha dan model OCR; jalankan manual dengan --ignored --nocapture"]
     async fn solve_captcha_local() {
-        let captcha = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/captcha.png")).unwrap();
+        let captcha = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/captcha.png")).unwrap();
         let captcha_bytes = bytes::Bytes::from(captcha);
         let answer = solve_captcha(captcha_bytes).await.unwrap();
 
         println!("captcha answer: {answer}");
 
-        assert!(answer == "7");
+        assert!(answer == 7);
     }
 
     #[tokio::test]
@@ -1191,7 +1167,7 @@ mod tests {
                 i, raw_text, answer, duration
             );
 
-            let _ = image.save(concat!(env!("CARGO_MANIFEST_DIR"),"/apa.png"));
+            let _ = image.save(concat!(env!("CARGO_MANIFEST_DIR"), "/apa.png"));
         }
         println!("=======================================================================");
     }
@@ -1202,7 +1178,7 @@ mod tests {
         let internet_data_source = InternetDataSource::new();
 
         let _ = internet_data_source
-            .cookie_renewed("202443500660", "GamerJeniusN")
+            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
             .await;
 
         let a = internet_data_source
@@ -1225,7 +1201,7 @@ mod tests {
     #[test]
     #[ignore = "membaca dashboard.html; jalankan manual dengan --ignored --nocapture"]
     fn parse_courses_with_local_dashboard_html() {
-        let real_dashboard_html = include_str!("../html/dashboard.html");
+        let real_dashboard_html = include_str!("../assets/html/dashboard.html");
 
         let result =
             InternetDataSource::parse_courses(&Html::parse_document(real_dashboard_html)).unwrap();
@@ -1298,7 +1274,7 @@ mod tests {
     #[test]
     #[ignore = "membaca dump.html; jalankan manual dengan --ignored"]
     fn parse_meetings_with_local_dashboard_html() {
-        let real_dashboard_html = include_str!("../html/dashboard.html");
+        let real_dashboard_html = include_str!("../assets/html/dashboard.html");
 
         let result =
             InternetDataSource::parse_meetings(&Html::parse_document(real_dashboard_html)).unwrap();
@@ -1323,7 +1299,7 @@ mod tests {
         let internet_data_source = InternetDataSource::new();
 
         let _ = internet_data_source
-            .cookie_renewed("202443500660", "GamerJeniusN")
+            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
             .await;
         let result = internet_data_source.fetch_attendances().await.unwrap();
 
@@ -1367,7 +1343,7 @@ mod tests {
         let internet_data_source = InternetDataSource::new();
 
         let _ = internet_data_source
-            .cookie_renewed("202443500660", "GamerJeniusN")
+            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
             .await;
 
         let result = internet_data_source.fetch_contents("https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=").await.unwrap();
@@ -1396,7 +1372,7 @@ mod tests {
         let internet_data_source = InternetDataSource::new();
 
         let _ = internet_data_source
-            .cookie_renewed("202443500660", "GamerJeniusN")
+            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
             .await;
 
         let result = internet_data_source.scrape_assignment(
@@ -1418,13 +1394,13 @@ mod tests {
         let internet_data_source = InternetDataSource::new();
 
         let _ = internet_data_source
-            .cookie_renewed("202443500660", "GamerJeniusN")
+            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
             .await;
 
         let result = internet_data_source.fetch_all().await.unwrap();
 
-        std::fs::write("lms_result.txt", format!("{:#?}", result)).expect("Gagal menulis ke file");
-        println!("Data berhasil ditulis ke lms_result.txt");
+        std::fs::write("target/lms_result.txt", format!("{:#?}", result)).expect("Gagal menulis ke file");
+        println!("Data berhasil ditulis ke target/lms_result.txt");
 
         assert!(
             !result.courses.is_empty(),
