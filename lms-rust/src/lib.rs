@@ -353,27 +353,20 @@ impl InternetDataSource {
     }
 
     async fn execute_attendances(&self, urls: Vec<String>) -> Result<(), LmsError> {
-        let results = try_join_all(urls.into_iter().map(|url| async move {
-            let res = self.web.get(&url).send().await;
-            match res {
-                Ok(response) if response.status().is_success() => Ok(Ok(())),
-                Ok(response) => Ok(Err(format!("Gagal absensi, status: {}", response.status()))),
-                Err(e) => Err(LmsError::NetworkError { msg: e.to_string() }),
-            }
-        }))
-        .await?;
+        for url in &urls {
+            let response = self.web.get(url).send().await?;
 
-        let has_success = results.iter().any(|r| r.is_ok());
-        if has_success || results.is_empty() {
-            Ok(())
-        } else {
-            let err_msg = results
-                .into_iter()
-                .filter_map(|r| r.err())
-                .collect::<Vec<_>>()
-                .join("; ");
-            Err(LmsError::NetworkError { msg: err_msg })
+            if response.status().is_success() {
+                return Ok(());
+            }
         }
+
+        Err(LmsError::NetworkError {
+            msg: format!(
+                "Gagal absensi dari balasan server pada {} URL percobaan.",
+                urls.len()
+            ),
+        })
     }
 
     async fn download_file(
