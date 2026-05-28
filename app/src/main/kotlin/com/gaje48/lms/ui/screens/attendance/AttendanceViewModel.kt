@@ -46,7 +46,7 @@ class AttendanceViewModel(
                         .groupBy({ it.meetingNumber }, { it.contentUrl })
 
                 attendances.mapIndexed { index, isAttended ->
-                    val meetingNumber = index + 1
+                    val meetingNumber = (index + 1).toByte()
 
                     AttendanceScreenData(
                         isAttended = isAttended,
@@ -86,11 +86,11 @@ class AttendanceViewModel(
 
         viewModelScope.launch {
             lmsRepository.syncAll().onFailure {
-                val mess = it.message ?: "Gagal memperbarui data"
+                val msg = it.message ?: "Gagal memperbarui data"
                 if (uiState.value.attendanceScreenDatas.isEmpty()) {
-                    _errorMessage.value = mess
+                    _errorMessage.value = msg
                 } else {
-                    _snackbarEvent.trySend(mess)
+                    _snackbarEvent.trySend(msg)
                 }
             }
 
@@ -105,13 +105,13 @@ class AttendanceViewModel(
 
             lmsRepository
                 .executeAttendances(urls)
-                .onFailure {
+                .onSuccess {
+                    lmsRepository.syncAttendances().onFailure {
+                        _snackbarEvent.trySend(it.message ?: "Gagal memperbarui data")
+                    }
+                }.onFailure {
                     _snackbarEvent.trySend(it.message ?: "Gagal melakukan absensi")
                 }
-
-            lmsRepository.syncAll().onFailure {
-                _snackbarEvent.trySend(it.message ?: "Gagal memperbarui data")
-            }
 
             _isProcessingAttendance.value = false
         }

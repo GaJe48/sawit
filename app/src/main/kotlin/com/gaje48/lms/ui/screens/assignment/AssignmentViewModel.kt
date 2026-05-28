@@ -71,11 +71,11 @@ class AssignmentViewModel(
 
         viewModelScope.launch {
             lmsRepository.syncAll().onFailure {
-                val mess = it.message ?: "Gagal memperbarui data"
+                val msg = it.message ?: "Gagal memperbarui data"
                 if (uiState.value.assignmentScreenDatas.isEmpty()) {
-                    _errorMessage.value = mess
+                    _errorMessage.value = msg
                 } else {
-                    _snackbarEvent.trySend(mess)
+                    _snackbarEvent.trySend(msg)
                 }
             }
 
@@ -86,30 +86,34 @@ class AssignmentViewModel(
 
     fun uploadSubmission(
         uri: Uri,
-        taskUrl: String,
+        assignmentUrl: String,
     ) {
         val notifId = System.currentTimeMillis().toInt()
         notificationHelper.showUploadStarted(notifId)
 
         viewModelScope.launch {
             lmsRepository
-                .uploadTask(uri, taskUrl) { fileName, progress ->
+                .uploadTask(uri, assignmentUrl) { fileName, progress ->
                     notificationHelper.showUploadProgress(notifId, fileName, progress)
                 }.onSuccess { fileName ->
                     notificationHelper.showUploadCompleting(notifId, fileName)
 
                     lmsRepository
-                        .syncAll()
-                        .onSuccess { notificationHelper.showUploadSuccess(notifId, fileName) }
+                        .syncAssignment(
+                            assignmentUrl,
+                            uiState.value.assignmentScreenDatas
+                                .first()
+                                .meetingUrl,
+                        ).onSuccess { notificationHelper.showUploadSuccess(notifId, fileName) }
                         .onFailure {
                             _snackbarEvent.trySend(
                                 it.message ?: "Gagal memperbarui data",
                             )
                         }
                 }.onFailure {
-                    val mess = it.message ?: "Gagal mengunggah tugas"
-                    notificationHelper.showUploadFailure(notifId, mess)
-                    _snackbarEvent.trySend(mess)
+                    val msg = it.message ?: "Gagal mengunggah tugas"
+                    notificationHelper.showUploadFailure(notifId, msg)
+                    _snackbarEvent.trySend(msg)
                 }
         }
     }
@@ -138,9 +142,9 @@ class AssignmentViewModel(
                     notificationHelper.showDownloadProgress(notifId, fileName, progress)
                 }.onSuccess { notificationHelper.showDownloadSuccess(notifId, it) }
                 .onFailure {
-                    val mess = it.message ?: "Gagal mengunduh berkas"
-                    notificationHelper.showDownloadFailure(notifId, mess)
-                    _snackbarEvent.trySend(mess)
+                    val msg = it.message ?: "Gagal mengunduh berkas"
+                    notificationHelper.showDownloadFailure(notifId, msg)
+                    _snackbarEvent.trySend(msg)
                 }
         }
     }

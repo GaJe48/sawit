@@ -35,12 +35,12 @@ data class AttendanceScreenData(
 )
 
 data class AttendanceVmData(
-    val meetingNumber: Int,
+    val meetingNumber: Byte,
     val contentUrl: String,
 )
 
 data class Meeting(
-    val meetingNumber: UByte,
+    val meetingNumber: Byte,
     val meetingUrl: String,
 )
 
@@ -59,8 +59,9 @@ data class ContentVmData(
 )
 
 data class AssignmentScreenData(
-    val meetingNumber: Byte,
     val assignmentUrl: String,
+    val meetingUrl: String,
+    val meetingNumber: Byte,
     val description: String?,
     val assignmentFileUrl: String?,
     val deadline: String,

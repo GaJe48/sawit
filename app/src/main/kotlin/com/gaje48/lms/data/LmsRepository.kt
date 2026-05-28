@@ -69,7 +69,7 @@ class LmsRepository(
         }
     }
 
-    suspend fun firstLogin() = runCatching { syncLmsApp() }
+    suspend fun login() = runCatching { syncLmsApp() }
 
     suspend fun syncAll() =
         runCatching {
@@ -88,9 +88,29 @@ class LmsRepository(
                 meetingDao.save(lmsEntity.meetings.map { it.toEntity() })
                 attendanceDao.save(lmsEntity.attendances.map { it.toEntity() })
                 contentDao.save(lmsEntity.contents.map { it.toEntity() })
-                assignmentDao.save(lmsEntity.assignments.map { it.toEntity() })
+                assignmentDao.saveAll(lmsEntity.assignments.map { it.toEntity() })
             }
         }
+
+    suspend fun syncAttendances() =
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val attendances = runAuthenticated { internetDataSource.fetchAttendances() }
+
+                attendanceDao.save(attendances.map { it.toEntity() })
+            }
+        }
+
+    suspend fun syncAssignment(
+        assignmentUrl: String,
+        meetingUrl: String,
+    ) = runCatching {
+        withContext(Dispatchers.IO) {
+            val assignments = runAuthenticated { internetDataSource.fetchAssignment(assignmentUrl, meetingUrl) }
+
+            assignmentDao.save(assignments.toEntity())
+        }
+    }
 
     suspend fun executeAttendances(urls: List<String>) =
         runCatching {

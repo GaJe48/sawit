@@ -93,6 +93,7 @@ interface AssignmentDao {
         """
         SELECT
             a.assignmentUrl,
+            a.meetingUrl,
             m.meetingNumber,
             a.description, 
             a.assignmentFileUrl, 
@@ -108,7 +109,10 @@ interface AssignmentDao {
     fun observeAssignmentScreenDatas(courseCode: String): Flow<List<AssignmentScreenData>>
 
     @Upsert
-    suspend fun save(assignments: List<AssignmentEntity>)
+    suspend fun save(assignment: AssignmentEntity)
+
+    @Upsert
+    suspend fun saveAll(assignments: List<AssignmentEntity>)
 }
 
 @Dao

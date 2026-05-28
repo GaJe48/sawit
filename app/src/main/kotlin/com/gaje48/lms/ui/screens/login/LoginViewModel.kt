@@ -40,7 +40,7 @@ class LoginViewModel(
                 .login(nim, pwd)
                 .onSuccess {
                     lmsRepository
-                        .firstLogin()
+                        .login()
                         .onSuccess {
                             authRepository.saveCredentials(nim, pwd)
                             _uiState.update { it.copy(isLoading = false, errorMessage = null) }

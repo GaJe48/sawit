@@ -52,13 +52,13 @@ struct Course {
 struct MeetingEntity {
     course_code: String,
     url: String,
-    number: u8,
+    number: i8,
 }
 
 #[derive(Debug, uniffi::Record)]
 struct AttendanceEntity {
     course_code: String,
-    index: u8,
+    index: i8,
     is_attended: bool,
 }
 
@@ -140,141 +140,6 @@ impl InternetDataSource {
         Self { web }
     }
 
-    async fn fetch_all(&self) -> Result<LmsEntity, LmsError> {
-        let dashboard_html_future = async {
-            self.web
-                .get("https://lms.unindra.ac.id/member")
-                .send()
-                .await?
-                .text()
-                .await
-        };
-
-        let attendances_future = self.fetch_attendances();
-
-        let (dashboard_raw_res, attendances_res) =
-            tokio::join!(dashboard_html_future, attendances_future);
-        let dashboard_raw = dashboard_raw_res?;
-        let attendances = attendances_res?;
-
-        let (student, mut courses, meetings) = Self::scrape_dashboard(&dashboard_raw)?;
-
-        let content_results = try_join_all(
-            meetings
-                .iter()
-                .map(|meeting| self.fetch_contents(&meeting.url)),
-        )
-        .await?;
-
-        let (suitcase_contents, regular_contents): (Vec<_>, Vec<_>) = content_results
-            .into_iter()
-            .flatten()
-            .partition(|content| content.content_type == "fa-suitcase");
-
-        let scrape_results = try_join_all(
-            suitcase_contents
-                .into_iter()
-                .map(|assignment| self.scrape_assignment(assignment.meeting_url, assignment.url)),
-        )
-        .await?;
-
-        let capacity = scrape_results.len();
-
-        let (assignments, lecturer_map) = scrape_results.into_iter().fold(
-            (Vec::with_capacity(capacity), HashMap::new()),
-            |(mut assigs, mut map), (assignment, lecturer_opt)| {
-                assigs.push(assignment);
-
-                if let Some((name, pic_url)) = lecturer_opt {
-                    map.insert(name, pic_url);
-                }
-
-                (assigs, map)
-            },
-        );
-
-        for course in &mut courses {
-            if course.lecturer_profile_picture_url.is_none() {
-                course.lecturer_profile_picture_url =
-                    lecturer_map.get(&course.lecturer_name).cloned();
-            }
-        }
-
-        Ok(LmsEntity {
-            student,
-            courses,
-            meetings,
-            attendances,
-            contents: regular_contents,
-            assignments,
-        })
-    }
-
-    async fn fetch_assignment(
-        &self,
-        fk_meeting_url: String,
-        pk_assignment_url: String,
-    ) -> Result<AssignmentEntity, LmsError> {
-        static MSG: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
-        static QUESTION: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.callout-white-default a").unwrap());
-        static DEADLINE: LazyLock<Selector> = LazyLock::new(|| {
-            Selector::parse("div.callout-white-default tr:nth-child(3) td").unwrap()
-        });
-        static ANSWER: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.callout-white-warning a").unwrap());
-
-        let html = self
-            .web
-            .get(&pk_assignment_url)
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let document = Html::parse_document(&html);
-
-        let message = document
-            .select(&MSG)
-            .next()
-            .and_then(|el| el.text().next())
-            .map(String::from);
-
-        let question_url = document
-            .select(&QUESTION)
-            .next()
-            .and_then(|el| extract_file_url(el));
-
-        let deadline = document
-            .select(&DEADLINE)
-            .next()
-            .and_then(|el| el.text().next())
-            .ok_or_else(|| LmsError::ParserError {
-                msg: "Deadline text not found".into(),
-            })?
-            .to_string();
-
-        let answer_url = document
-            .select(&ANSWER)
-            .next()
-            .and_then(|el| extract_file_url(el));
-
-        let is_submitted = html.contains("Sudah Submit");
-        let is_overdue = html.contains("Waktu Submit sudah berakhir");
-
-        Ok(AssignmentEntity {
-            meeting_url: fk_meeting_url,
-            url: pk_assignment_url,
-            message,
-            question_url,
-            deadline,
-            answer_url,
-            is_submitted,
-            is_overdue,
-        })
-    }
-
     async fn cookie_renewed(&self, nim: String, pwd: String) -> Result<(), LmsError> {
         static INPUT_SEL: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("[type=hidden]").unwrap());
@@ -350,6 +215,217 @@ impl InternetDataSource {
         }
 
         Ok(())
+    }
+
+    async fn fetch_all(&self) -> Result<LmsEntity, LmsError> {
+        let dashboard_html_future = async {
+            self.web
+                .get("https://lms.unindra.ac.id/member")
+                .send()
+                .await?
+                .text()
+                .await
+        };
+
+        let attendances_future = self.fetch_attendances();
+
+        let (dashboard_raw_res, attendances_res) =
+            tokio::join!(dashboard_html_future, attendances_future);
+        let dashboard_raw = dashboard_raw_res?;
+        let attendances = attendances_res?;
+
+        let (student, mut courses, meetings) = Self::scrape_dashboard(dashboard_raw)?;
+
+        let content_results = try_join_all(
+            meetings
+                .iter()
+                .map(|meeting| self.fetch_contents(&meeting.url)),
+        )
+        .await?;
+
+        let (suitcase_contents, regular_contents): (Vec<_>, Vec<_>) = content_results
+            .into_iter()
+            .flatten()
+            .partition(|content| content.content_type == "fa-suitcase");
+
+        let scrape_results = try_join_all(
+            suitcase_contents
+                .into_iter()
+                .map(|assignment| self.scrape_assignment(assignment.meeting_url, assignment.url)),
+        )
+        .await?;
+
+        let capacity = scrape_results.len();
+
+        let (assignments, lecturer_map) = scrape_results.into_iter().fold(
+            (Vec::with_capacity(capacity), HashMap::new()),
+            |(mut assigs, mut map), (assignment, lecturer_opt)| {
+                assigs.push(assignment);
+
+                if let Some((name, pic_url)) = lecturer_opt {
+                    map.insert(name, pic_url);
+                }
+
+                (assigs, map)
+            },
+        );
+
+        for course in &mut courses {
+            if course.lecturer_profile_picture_url.is_none() {
+                course.lecturer_profile_picture_url =
+                    lecturer_map.get(&course.lecturer_name).cloned();
+            }
+        }
+
+        Ok(LmsEntity {
+            student,
+            courses,
+            meetings,
+            attendances,
+            contents: regular_contents,
+            assignments,
+        })
+    }
+
+    async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
+        static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
+        static CELL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("td:nth-child(n+2):nth-child(-n+3)").unwrap());
+        static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
+
+        let attend_html = self
+            .web
+            .get("https://lms.unindra.ac.id/presensi")
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let futures = {
+            let attend_parser = Html::parse_document(&attend_html);
+
+            attend_parser
+                .select(&ROW)
+                .map(|row| {
+                    let mut cells = row.select(&CELL);
+
+                    let course_code = cells
+                        .next()
+                        .and_then(|el| el.text().next())
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Gagal memparsing kode mata kuliah".to_string(),
+                        })?
+                        .trim()
+                        .to_string();
+
+                    let (kode_jadwal_id, nim_id) = cells
+                        .next()
+                        .and_then(|el| {
+                            let mut parts = el.attr("onclick")?.split('\'');
+
+                            let kode = parts.nth(1)?.to_string();
+                            let nim = parts.nth(1)?.to_string();
+
+                            Some((kode, nim))
+                        })
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Gagal memparsing kode_jadwal_id dan nim_id dari onclick"
+                                .to_string(),
+                        })?;
+
+                    let client = &self.web;
+
+                    Ok(async move {
+                        let html = client
+                            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
+                            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
+                            .send()
+                            .await?
+                            .text()
+                            .await?;
+
+                        let parser = Html::parse_document(&html);
+
+                        let list = (1i8..)
+                            .zip(parser.select(&ATTEND))
+                            .map(|(index, cell)| AttendanceEntity {
+                                course_code: course_code.clone(),
+                                index,
+                                is_attended: cell
+                                    .value()
+                                    .classes()
+                                    .any(|c| c == "fa-calendar-check-o"),
+                            })
+                            .collect::<Vec<_>>();
+
+                        Ok::<Vec<_>, LmsError>(list)
+                    })
+                })
+                .collect::<Result<Vec<_>, LmsError>>()?
+        };
+
+        let results = try_join_all(futures).await?;
+
+        Ok(results.into_iter().flatten().collect())
+    }
+
+    async fn fetch_assignment(
+        &self,
+        assignment_url: String,
+        meeting_url: String,
+    ) -> Result<AssignmentEntity, LmsError> {
+        static MSG: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
+        static QUESTION: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-default a").unwrap());
+        static DEADLINE: LazyLock<Selector> = LazyLock::new(|| {
+            Selector::parse("div.callout-white-default tr:nth-child(3) td").unwrap()
+        });
+        static ANSWER: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("div.callout-white-warning a").unwrap());
+
+        let html = self.web.get(&assignment_url).send().await?.text().await?;
+
+        let document = Html::parse_document(&html);
+
+        let message = document
+            .select(&MSG)
+            .next()
+            .and_then(|el| el.text().next())
+            .map(String::from);
+
+        let question_url = document
+            .select(&QUESTION)
+            .next()
+            .and_then(|el| extract_file_url(el));
+
+        let deadline = document
+            .select(&DEADLINE)
+            .next()
+            .and_then(|el| el.text().next())
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Deadline text not found".into(),
+            })?
+            .to_string();
+
+        let answer_url = document
+            .select(&ANSWER)
+            .next()
+            .and_then(|el| extract_file_url(el));
+
+        let is_submitted = html.contains("Sudah Submit");
+        let is_overdue = html.contains("Waktu Submit sudah berakhir");
+
+        Ok(AssignmentEntity {
+            meeting_url: meeting_url,
+            url: assignment_url,
+            message,
+            question_url,
+            deadline,
+            answer_url,
+            is_submitted,
+            is_overdue,
+        })
     }
 
     async fn execute_attendances(&self, urls: Vec<String>) -> Result<(), LmsError> {
@@ -532,9 +608,9 @@ impl InternetDataSource {
 
 impl InternetDataSource {
     fn scrape_dashboard(
-        dashboard_page: &str,
+        dashboard_page: String,
     ) -> Result<(Student, Vec<Course>, Vec<MeetingEntity>), LmsError> {
-        let dashboard_html = Html::parse_document(dashboard_page);
+        let dashboard_html = Html::parse_document(&dashboard_page);
 
         Ok((
             Self::parse_student(&dashboard_html)?,
@@ -749,128 +825,46 @@ impl InternetDataSource {
             LazyLock::new(|| Selector::parse("span.header_badeg").unwrap());
 
         let meetings = dashboard_html
-        .select(&TREE)
-        .zip(dashboard_html.select(&CARD))
-        .map(|(tree, card)| {
-            let course_code = card
-                .select(&COURSE_CODE)
-                .next()
-                .and_then(|el| el.text().next()?.split(" -").next())
-                .ok_or_else(|| LmsError::ParserError {
-                    msg: "Failed to parse course code from badge text (expected format '<course_code> - <course_name>')".to_string(),
-                })?
-                .to_string();
+            .select(&TREE)
+            .zip(dashboard_html.select(&CARD))
+            .map(|(tree, card)| {
+                let course_code = card
+                    .select(&COURSE_CODE)
+                    .next()
+                    .and_then(|el| el.text().next()?.split(" -").next())
+                    .ok_or_else(|| LmsError::ParserError {
+                        msg: "Failed to parse course code from badge text (expected format '<course_code> - <course_name>')".to_string(),
+                    })?
+                    .to_string();
 
-            tree.select(&MEETING)
-                .map(|a_tag| {
-                    let url = a_tag
-                        .attr("href")
-                        .ok_or_else(|| LmsError::ParserError {
-                            msg: "Meeting link element 'a' is missing the 'href' attribute".into(),
-                        })?
-                        .to_string();
+                tree.select(&MEETING)
+                    .map(|a_tag| {
+                        let url = a_tag
+                            .attr("href")
+                            .ok_or_else(|| LmsError::ParserError {
+                                msg: "Meeting link element 'a' is missing the 'href' attribute".into(),
+                            })?
+                            .to_string();
 
-                    let number = a_tag
-                        .text()
-                        .nth(1)
-                        .and_then(|s| s.strip_prefix("Pertemuan ")?.parse::<u8>().ok())
-                        .ok_or_else(|| LmsError::ParserError {
-                            msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".into(),
-                        })?;
+                        let number = a_tag
+                            .text()
+                            .nth(1)
+                            .and_then(|s| s.strip_prefix("Pertemuan ")?.parse::<i8>().ok())
+                            .ok_or_else(|| LmsError::ParserError {
+                                msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".into(),
+                            })?;
 
-                    Ok(MeetingEntity {
-                        course_code: course_code.clone(),
-                        url,
-                        number,
+                        Ok(MeetingEntity {
+                            course_code: course_code.clone(),
+                            url,
+                            number,
+                        })
                     })
-                })
-                .collect::<Result<Vec<_>, LmsError>>()
-        })
-        .collect::<Result<Vec<_>, LmsError>>()?;
+                    .collect::<Result<Vec<_>, LmsError>>()
+            })
+            .collect::<Result<Vec<_>, LmsError>>()?;
 
         Ok(meetings.into_iter().flatten().collect())
-    }
-
-    async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
-        static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
-        static CELL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("td:nth-child(n+2):nth-child(-n+8)").unwrap());
-        static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
-
-        let attend_html = self
-            .web
-            .get("https://lms.unindra.ac.id/presensi")
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let futures = {
-            let attend_parser = Html::parse_document(&attend_html);
-
-            attend_parser
-                .select(&ROW)
-                .map(|row| {
-                    let mut cells = row.select(&CELL);
-
-                    let course_code = cells
-                        .next()
-                        .and_then(|el| el.text().next())
-                        .ok_or_else(|| LmsError::ParserError {
-                            msg: "Gagal memparsing kode mata kuliah".to_string(),
-                        })?
-                        .trim()
-                        .to_string();
-
-                    let (kode_jadwal_id, nim_id) = cells
-                        .next()
-                        .and_then(|el| {
-                            let mut parts = el.attr("onclick")?.split('\'');
-
-                            let kode = parts.nth(1)?.to_string();
-                            let nim = parts.nth(1)?.to_string();
-
-                            Some((kode, nim))
-                        })
-                        .ok_or_else(|| LmsError::ParserError {
-                            msg: "Gagal memparsing kode_jadwal_id dan nim_id dari onclick"
-                                .to_string(),
-                        })?;
-
-                    let client = &self.web;
-
-                    Ok(async move {
-                        let html = client
-                            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
-                            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
-                            .send()
-                            .await?
-                            .text()
-                            .await?;
-
-                        let parser = Html::parse_document(&html);
-
-                        let list = (1u8..)
-                            .zip(parser.select(&ATTEND))
-                            .map(|(index, cell)| AttendanceEntity {
-                                course_code: course_code.clone(),
-                                index,
-                                is_attended: cell
-                                    .value()
-                                    .classes()
-                                    .any(|c| c == "fa-calendar-check-o"),
-                            })
-                            .collect::<Vec<_>>();
-
-                        Ok::<Vec<_>, LmsError>(list)
-                    })
-                })
-                .collect::<Result<Vec<_>, LmsError>>()?
-        };
-
-        let results = try_join_all(futures).await?;
-
-        Ok(results.into_iter().flatten().collect())
     }
 
     async fn fetch_contents(&self, meeting_url: &str) -> Result<Vec<ContentEntity>, LmsError> {
