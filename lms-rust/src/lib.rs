@@ -103,10 +103,14 @@ enum LmsError {
     StorageError { msg: String },
     #[error("Network error: {msg}")]
     NetworkError { msg: String },
-    #[error("Credential error: Username atau password salah")]
+    #[error("Network status error ({status_code}): {msg}")]
+    NetworkStatusError { status_code: u16, msg: String },
+    #[error("Credential error: Invalid username or password")]
     CredentialError,
-    #[error("Captcha error: Jawaban Captcha Salah")]
+    #[error("Captcha error: Incorrect CAPTCHA answer")]
     CaptchaError,
+    #[error("Captcha solver error: {msg}")]
+    CaptchaSolverError { msg: String },
     #[error("Parser error: {msg}")]
     ParserError { msg: String },
 }
@@ -161,7 +165,7 @@ impl InternetDataSource {
                 .next()
                 .and_then(|el| el.attr("value"))
                 .ok_or_else(|| LmsError::ParserError {
-                    msg: "CSRF token hidden input field not found".into(),
+                    msg: "CSRF token hidden input field not found".to_string(),
                 })?
                 .to_string();
 
@@ -174,7 +178,7 @@ impl InternetDataSource {
                     Some((rn, rv))
                 })
                 .ok_or_else(|| LmsError::ParserError {
-                    msg: "Random check hidden input field not found".into(),
+                    msg: "Random check hidden input field not found".to_string(),
                 })?;
 
             (t, rn, rv)
@@ -313,7 +317,7 @@ impl InternetDataSource {
                         .next()
                         .and_then(|el| el.text().next())
                         .ok_or_else(|| LmsError::ParserError {
-                            msg: "Gagal memparsing kode mata kuliah".to_string(),
+                            msg: "Failed to parse course code from attendance table row".to_string(),
                         })?
                         .trim()
                         .to_string();
@@ -329,8 +333,7 @@ impl InternetDataSource {
                             Some((kode, nim))
                         })
                         .ok_or_else(|| LmsError::ParserError {
-                            msg: "Gagal memparsing kode_jadwal_id dan nim_id dari onclick"
-                                .to_string(),
+                            msg: "Failed to parse course schedule ID and student NIM from row onclick attribute".to_string(),
                         })?;
 
                     let client = &self.web;
@@ -404,7 +407,7 @@ impl InternetDataSource {
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
-                msg: "Deadline text not found".into(),
+                msg: "Assignment deadline text not found in page".to_string(),
             })?
             .to_string();
 
@@ -429,17 +432,21 @@ impl InternetDataSource {
     }
 
     async fn execute_attendances(&self, urls: Vec<String>) -> Result<(), LmsError> {
+        let mut last_status = 0u16;
         for url in &urls {
             let response = self.web.get(url).send().await?;
+            let status = response.status();
 
-            if response.status().is_success() {
+            if status.is_success() {
                 return Ok(());
             }
+            last_status = status.as_u16();
         }
 
-        Err(LmsError::NetworkError {
+        Err(LmsError::NetworkStatusError {
+            status_code: last_status,
             msg: format!(
-                "Gagal absensi dari balasan server pada {} URL percobaan.",
+                "Failed to record attendance after trying {} URL(s).",
                 urls.len()
             ),
         })
@@ -454,21 +461,27 @@ impl InternetDataSource {
         let mut response = self.web.get(&file_url).send().await?;
 
         if !response.status().is_success() {
-            return Err(LmsError::NetworkError {
-                msg: format!("File tidak ada di server ({})", response.status().as_u16()),
+            return Err(LmsError::NetworkStatusError {
+                status_code: response.status().as_u16(),
+                msg: format!("File is not available on the server at {}", file_url),
             });
         }
 
-        let ext = response
+        let content_type_header = response
             .headers()
             .get("content-type")
-            .and_then(|v| {
-                let content_type = v.to_str().ok()?;
+            .and_then(|v| v.to_str().ok());
 
-                mime_guess::get_mime_extensions_str(content_type)?.first()
+        let ext = content_type_header
+            .and_then(|ct| {
+                let base_type = ct.split(';').next()?.trim();
+                mime_guess::get_mime_extensions_str(base_type)?.first()
             })
             .ok_or_else(|| LmsError::ParserError {
-                msg: "Format file tidak dikenali".to_string(),
+                msg: match content_type_header {
+                    Some(ct) => format!("Unrecognized file format for Content-Type: '{}'", ct),
+                    None => "Missing Content-Type header in server response".to_string(),
+                },
             })?;
 
         let file_name = format!("{}.{}", raw_file_name, ext);
@@ -489,7 +502,9 @@ impl InternetDataSource {
             tokio_file
                 .write_all(&chunk)
                 .await
-                .map_err(|e| LmsError::StorageError { msg: e.to_string() })?;
+                .map_err(|e| LmsError::StorageError {
+                    msg: format!("Failed to write file chunk to disk: {}", e),
+                })?;
             downloaded += chunk.len() as u64;
             if total_size > 0 {
                 let progress = downloaded as f32 / total_size as f32;
@@ -500,7 +515,9 @@ impl InternetDataSource {
         tokio_file
             .sync_all()
             .await
-            .map_err(|e| LmsError::StorageError { msg: e.to_string() })?;
+            .map_err(|e| LmsError::StorageError {
+                msg: format!("Failed to sync downloaded file to storage: {}", e),
+            })?;
 
         callback.on_progress(file_name.clone(), 1.0);
         Ok(file_name)
@@ -508,13 +525,13 @@ impl InternetDataSource {
 
     async fn upload_submission(
         &self,
-        task_url: String,
+        assignment_url: String,
         file_name: String,
         file_size: u64,
         fd: i32,
         callback: Box<dyn UploadCallback>,
     ) -> Result<String, LmsError> {
-        let html_form = self.web.get(&task_url).send().await?.text().await?;
+        let html_form = self.web.get(&assignment_url).send().await?.text().await?;
 
         let (id_tugas, h_kode, id_aktifitas) = {
             static ID_TUGAS_SEL: LazyLock<Selector> =
@@ -530,8 +547,8 @@ impl InternetDataSource {
                 .select(&ID_TUGAS_SEL)
                 .next()
                 .and_then(|el| el.attr("value"))
-                .ok_or(LmsError::NetworkError {
-                    msg: "Payload form h_id_tugas tidak ditemukan".into(),
+                .ok_or(LmsError::ParserError {
+                    msg: "Submission form payload 'h_id_tugas' not found in HTML".to_string(),
                 })?
                 .to_string();
 
@@ -539,8 +556,8 @@ impl InternetDataSource {
                 .select(&H_KODE_SEL)
                 .next()
                 .and_then(|el| el.attr("value"))
-                .ok_or(LmsError::NetworkError {
-                    msg: "Payload form h_kode tidak ditemukan".into(),
+                .ok_or(LmsError::ParserError {
+                    msg: "Submission form payload 'h_kode' not found in HTML".to_string(),
                 })?
                 .to_string();
 
@@ -548,8 +565,8 @@ impl InternetDataSource {
                 .select(&ID_AKTIFITAS_SEL)
                 .next()
                 .and_then(|el| el.attr("value"))
-                .ok_or(LmsError::NetworkError {
-                    msg: "Payload form h_id_aktifitas tidak ditemukan".into(),
+                .ok_or(LmsError::ParserError {
+                    msg: "Submission form payload 'h_id_aktifitas' not found in HTML".to_string(),
                 })?
                 .to_string();
 
@@ -598,8 +615,9 @@ impl InternetDataSource {
             callback_arc.on_progress(file_name.clone(), 1.0);
             Ok(file_name)
         } else {
-            Err(LmsError::NetworkError {
-                msg: format!("Upload gagal, status: {}", res.status()),
+            Err(LmsError::NetworkStatusError {
+                status_code: res.status().as_u16(),
+                msg: "Failed to upload submission".to_string(),
             })
         }
     }
@@ -638,7 +656,7 @@ impl InternetDataSource {
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
-                msg: "Student name not found".into(),
+                msg: "Student name element not found in dashboard".to_string(),
             })?
             .trim();
 
@@ -649,7 +667,7 @@ impl InternetDataSource {
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
-                msg: "Student NPM not found".into(),
+                msg: "Student NPM element not found in dashboard".to_string(),
             })?
             .to_string();
 
@@ -658,7 +676,7 @@ impl InternetDataSource {
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
-                msg: "Student study program not found".into(),
+                msg: "Student study program element not found in dashboard".to_string(),
             })?
             .trim()
             .to_string();
@@ -710,7 +728,7 @@ impl InternetDataSource {
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
-                        msg: "Lecturer username text is empty".into(),
+                        msg: "Lecturer name element not found in course card".to_string(),
                     })?;
 
                 let lecturer_name = format_title_case(raw_lecturer);
@@ -735,7 +753,7 @@ impl InternetDataSource {
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
-                        msg: "Course header text is empty".into(),
+                        msg: "Course header text (code and name) not found in course card".to_string(),
                     })?
                     .replace("\n                         ", "");
 
@@ -763,7 +781,7 @@ impl InternetDataSource {
                     .next()
                     .and_then(|el| el.text().next())
                     .ok_or_else(|| LmsError::ParserError {
-                        msg: "Course schedule text is empty".into(),
+                        msg: "Course schedule text not found in course card".to_string(),
                     })?;
 
                 let mut parts = sec_span.split('|').map(|s| s.trim());
@@ -773,7 +791,7 @@ impl InternetDataSource {
                     .and_then(|el| el.strip_prefix("Ruang: "))
                     .ok_or_else(|| LmsError::ParserError {
                         msg: format!(
-                            "Failed to parse room segment (expected format 'Ruang <room_name>') from schedule string: '{}'",
+                            "Failed to parse room segment (expected format 'Ruang: <room_name>') from schedule string: '{}'",
                             sec_span
                         ),
                     })?
@@ -784,7 +802,7 @@ impl InternetDataSource {
                     .and_then(|el| el.strip_prefix("Waktu: "))
                     .ok_or_else(|| LmsError::ParserError {
                         msg: format!(
-                            "Failed to parse schedule details segment (expected format 'Waktu <day, clock>') from schedule string: '{}'",
+                            "Failed to parse schedule details segment (expected format 'Waktu: <day, clock>') from schedule string: '{}'",
                             sec_span
                         ),
                     })?;
@@ -841,7 +859,7 @@ impl InternetDataSource {
                         let url = a_tag
                             .attr("href")
                             .ok_or_else(|| LmsError::ParserError {
-                                msg: "Meeting link element 'a' is missing the 'href' attribute".into(),
+                                msg: "Meeting link element 'a' is missing the 'href' attribute".to_string(),
                             })?
                             .to_string();
 
@@ -850,7 +868,7 @@ impl InternetDataSource {
                             .nth(1)
                             .and_then(|s| s.strip_prefix("Pertemuan ")?.parse::<i8>().ok())
                             .ok_or_else(|| LmsError::ParserError {
-                                msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".into(),
+                                msg: "Failed to parse meeting number from text nodes (expected second text node to be 'Pertemuan <number>')".to_string(),
                             })?;
 
                         Ok(MeetingEntity {
@@ -885,7 +903,7 @@ impl InternetDataSource {
                         .select(&LINK)
                         .next()
                         .ok_or_else(|| LmsError::ParserError {
-                            msg: "Link element ('a' tag) not found in row".into(),
+                            msg: "Link element ('a' tag) not found in content row".to_string(),
                         })?;
 
                     let link = a_tag
@@ -897,8 +915,7 @@ impl InternetDataSource {
                                 .and_then(|attr| attr.split('\'').nth(1))
                         })
                         .ok_or_else(|| LmsError::ParserError {
-                            msg: "No valid link found (missing 'http' in href and no 'onclick')"
-                                .into(),
+                            msg: "No valid link found in content row (missing 'http' in href and no 'onclick')".to_string(),
                         })?
                         .to_string();
 
@@ -919,7 +936,7 @@ impl InternetDataSource {
                         .text()
                         .nth(5)
                         .ok_or_else(|| LmsError::ParserError {
-                            msg: "Failed to parse content title".into(),
+                            msg: "Failed to parse content title from row".to_string(),
                         })?
                         .trim()
                         .to_string();
@@ -998,7 +1015,7 @@ impl InternetDataSource {
             .next()
             .and_then(|el| el.text().next())
             .ok_or_else(|| LmsError::ParserError {
-                msg: "Deadline text not found".into(),
+                msg: "Assignment deadline text not found in page".to_string(),
             })?
             .to_string();
 
@@ -1056,19 +1073,21 @@ static REC_MODEL: LazyLock<ocr_rs::RecModel> = LazyLock::new(|| {
 
 async fn solve_captcha(bytes: bytes::Bytes) -> Result<u8, LmsError> {
     tokio::task::spawn_blocking(move || {
-        let mut image = image::load_from_memory(&bytes).map_err(|e| LmsError::ParserError {
-            msg: format!("Failed to load captcha image: {}", e),
-        })?;
+        let mut image =
+            image::load_from_memory(&bytes).map_err(|e| LmsError::CaptchaSolverError {
+                msg: format!("Failed to load captcha image from bytes: {}", e),
+            })?;
 
         image = image.crop(47, 16, 48, 14);
         image = image.grayscale();
         image.invert();
 
-        let raw_text = REC_MODEL
-            .recognize_text(&image)
-            .map_err(|e| LmsError::ParserError {
-                msg: format!("OCR text recognition failed: {:?}", e),
-            })?;
+        let raw_text =
+            REC_MODEL
+                .recognize_text(&image)
+                .map_err(|e| LmsError::CaptchaSolverError {
+                    msg: format!("OCR text recognition failed: {:?}", e),
+                })?;
 
         let numbers: Vec<u8> = raw_text
             .split(|c: char| !c.is_ascii_digit())
@@ -1078,17 +1097,17 @@ async fn solve_captcha(bytes: bytes::Bytes) -> Result<u8, LmsError> {
         if numbers.len() >= 2 {
             Ok(numbers[0] + numbers[1])
         } else {
-            Err(LmsError::ParserError {
+            Err(LmsError::CaptchaSolverError {
                 msg: format!(
-                    "OCR gagal mengekstrak 2 angka. Hasil raw text: '{}'",
+                    "OCR failed to extract two numbers from captcha. Raw OCR text: '{}'",
                     raw_text
                 ),
             })
         }
     })
     .await
-    .map_err(|e| LmsError::ParserError {
-        msg: format!("Captcha solving task joined with error: {}", e),
+    .map_err(|e| LmsError::CaptchaSolverError {
+        msg: format!("Captcha solving task failed to join: {}", e),
     })?
 }
 
