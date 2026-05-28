@@ -127,7 +127,7 @@ class AssignmentViewModel(
                     return
                 }
         val courseName =
-            state.courseName?.replace(" ", "-") ?: run {
+            state.courseName?.replace(' ', '-') ?: run {
                 _snackbarEvent.trySend("Gagal membuat nama berkas")
                 return
             }

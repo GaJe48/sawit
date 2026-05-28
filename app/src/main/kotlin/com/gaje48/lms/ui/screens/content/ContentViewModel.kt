@@ -102,7 +102,7 @@ class ContentViewModel(
                     _snackbarEvent.trySend("Gagal membuat nama berkas")
                     return@launch
                 }
-            val fileName = "Materi_${courseName}_Pertemuan-${meetingNumber}_$title"
+            val fileName = "Materi_${courseName}_Pertemuan-${meetingNumber}_$title".replace(' ', '-')
 
             lmsRepository
                 .downloadFile(fileUrl, fileName) { fileName, progress ->

@@ -459,25 +459,24 @@ impl InternetDataSource {
             });
         }
 
-        let content_type = response
+        let ext = response
             .headers()
             .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.split(';').next().unwrap_or(s).trim())
-            .unwrap_or("application/octet-stream")
-            .to_string();
+            .and_then(|v| {
+                let content_type = v.to_str().ok()?;
 
-        let ext = mime_guess::get_mime_extensions_str(&content_type)
-            .and_then(|exts| exts.first())
-            .unwrap_or(&"bin");
+                mime_guess::get_mime_extensions_str(content_type)?.first()
+            })
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Format file tidak dikenali".to_string(),
+            })?;
 
         let file_name = format!("{}.{}", raw_file_name, ext);
 
         let total_size = response
             .headers()
             .get("content-length")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<u64>().ok())
+            .and_then(|v| v.to_str().ok()?.parse::<u64>().ok())
             .unwrap_or(0);
 
         let raw_fd = callback.on_start(file_name.clone()).await?;
