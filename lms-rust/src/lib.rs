@@ -1159,6 +1159,12 @@ fn format_title_case(s: &str) -> String {
 mod tests {
     use super::*;
 
+    async fn login_helper(internet_data_source: &InternetDataSource) {
+        let nim = std::env::var("LMS_NPM").unwrap_or_else(|_| "dummy_npm".to_string());
+        let pwd = std::env::var("LMS_PASSWORD").unwrap_or_else(|_| "dummy_password".to_string());
+        let _ = internet_data_source.cookie_renewed(nim, pwd).await;
+    }
+
     #[tokio::test]
     #[ignore = "membutuhkan file captcha dan model OCR; jalankan manual dengan --ignored --nocapture"]
     async fn solve_captcha_local() {
@@ -1239,9 +1245,7 @@ mod tests {
     async fn parse_student_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        let _ = internet_data_source
-            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
-            .await;
+        login_helper(&internet_data_source).await;
 
         let a = internet_data_source
             .web
@@ -1360,9 +1364,7 @@ mod tests {
     async fn fetch_attendances_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        let _ = internet_data_source
-            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
-            .await;
+        login_helper(&internet_data_source).await;
         let result = internet_data_source.fetch_attendances().await.unwrap();
 
         let mut grouped: Vec<(String, Vec<bool>)> = Vec::new();
@@ -1404,9 +1406,7 @@ mod tests {
     async fn fetch_contents_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        let _ = internet_data_source
-            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
-            .await;
+        login_helper(&internet_data_source).await;
 
         let result = internet_data_source.fetch_contents("https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=").await.unwrap();
 
@@ -1433,9 +1433,7 @@ mod tests {
     async fn fetch_assignments_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        let _ = internet_data_source
-            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
-            .await;
+        login_helper(&internet_data_source).await;
 
         let result = internet_data_source.scrape_assignment(
             "https://lms.unindra.ac.id/pertemuan/pke/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoS2VSWkxseFp5djZUWjhORkZDdDRXST0=".to_string(),
@@ -1455,9 +1453,7 @@ mod tests {
     async fn fetch_all_with_cookie() {
         let internet_data_source = InternetDataSource::new();
 
-        let _ = internet_data_source
-            .cookie_renewed("202443500660".to_string(), "GamerJeniusN".to_string())
-            .await;
+        login_helper(&internet_data_source).await;
 
         let result = internet_data_source.fetch_all().await.unwrap();
 
