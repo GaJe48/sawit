@@ -17,6 +17,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -268,8 +270,9 @@ fun LoginScreen(viewModel: LoginViewModel) {
 
                         OutlinedTextField(
                             value = nim,
-                            onValueChange = { nim = it },
+                            onValueChange = { input -> if (input.all { it.isDigit() }) nim = input },
                             label = { Text("NIM Mahasiswa") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
