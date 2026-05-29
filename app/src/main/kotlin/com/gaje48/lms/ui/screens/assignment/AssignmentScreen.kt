@@ -2,7 +2,18 @@ package com.gaje48.lms.ui.screens.assignment
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,15 +37,16 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -53,9 +65,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -90,7 +104,7 @@ fun AssignmentScreen(
 
     val uriHandler = LocalUriHandler.current
     val hazeState = rememberHazeState()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val state = rememberPullToRefreshState()
 
     var currentSubmitUrl by remember { mutableStateOf("") }
@@ -104,22 +118,55 @@ fun AssignmentScreen(
             }
         }
 
+    val infiniteTransition = rememberInfiniteTransition(label = "assignment_blobs")
+    val blobTime by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * Math.PI.toFloat(),
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(28000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "blob_time",
+    )
+
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface),
+                .background(MaterialTheme.colorScheme.background),
     ) {
         Box(
             modifier =
                 Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
+                    .size(400.dp)
+                    .graphicsLayer {
+                        translationX = (25f * kotlin.math.sin(blobTime)).dp.toPx() - 100.dp.toPx()
+                        translationY = (25f * kotlin.math.cos(blobTime)).dp.toPx() - 50.dp.toPx()
+                    }.background(
+                        Brush.radialGradient(
+                            colors =
+                                listOf(
+                                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f),
+                                    Color.Transparent,
+                                ),
+                        ),
+                    ),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .size(350.dp)
+                    .align(Alignment.BottomEnd)
+                    .graphicsLayer {
+                        translationX = (30f * kotlin.math.cos(blobTime + 1.5f)).dp.toPx() + 80.dp.toPx()
+                        translationY = (30f * kotlin.math.sin(blobTime + 1.5f)).dp.toPx() + 80.dp.toPx()
+                    }.background(
+                        Brush.radialGradient(
                             colors =
                                 listOf(
                                     MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f),
-                                    MaterialTheme.colorScheme.surface,
+                                    Color.Transparent,
                                 ),
                         ),
                     ),
@@ -134,7 +181,7 @@ fun AssignmentScreen(
                 PullToRefreshDefaults.LoadingIndicator(
                     state = state,
                     isRefreshing = isRefreshing,
-                    modifier = Modifier.padding(top = 16.dp),
+                    color = MaterialTheme.colorScheme.primary,
                 )
             },
         ) {
@@ -142,7 +189,7 @@ fun AssignmentScreen(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 containerColor = Color.Transparent,
                 topBar = {
-                    LargeTopAppBar(
+                    TopAppBar(
                         scrollBehavior = scrollBehavior,
                         colors =
                             TopAppBarDefaults.topAppBarColors(
@@ -157,14 +204,17 @@ fun AssignmentScreen(
                         title = {
                             Column {
                                 Text(
-                                    "Tugas Kuliah",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.ExtraBold,
+                                    text = "Tugas Kuliah",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
                                 )
                                 Text(
-                                    courseName,
+                                    text = courseName,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         },
@@ -173,11 +223,11 @@ fun AssignmentScreen(
                                 onClick = onBackClick,
                                 modifier =
                                     Modifier
-                                        .padding(start = 8.dp, end = 8.dp)
+                                        .padding(start = 12.dp, end = 4.dp)
                                         .background(
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                             CircleShape,
-                                        ),
+                                        ).border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
@@ -216,7 +266,7 @@ fun AssignmentScreen(
                                             onRetry = { viewModel.fetchAssignments() },
                                         )
 
-                                    else -> EmptyGif(label = "Belum ada tugas")
+                                    else -> EmptyGif(label = "Belum ada tugas kuliah")
                                 }
                             }
                         }
@@ -266,27 +316,47 @@ fun AssignmentCard(
 ) {
     val statusColor =
         when {
-            assignmentScreenData.isSubmitted -> MaterialTheme.colorScheme.primary
-            assignmentScreenData.isOverdue -> MaterialTheme.colorScheme.error
-            else -> MaterialTheme.colorScheme.secondary
+            assignmentScreenData.isSubmitted -> Color(0xFF10B981)
+            assignmentScreenData.isOverdue -> Color(0xFFEF4444)
+            else -> Color(0xFFF59E0B)
         }
 
     val statusLabel =
         when {
-            assignmentScreenData.isSubmitted -> "Sudah Dikumpulkan"
-            assignmentScreenData.isOverdue -> "Waktu Berakhir"
-            else -> "Belum Dikumpulkan"
+            assignmentScreenData.isSubmitted -> "Selesai Dikirim"
+            assignmentScreenData.isOverdue -> "Waktu Habis"
+            else -> "Belum Dikirim"
         }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(if (isPressed) 0.97f else 1f, label = "card_scale")
 
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = cardScale
+                    scaleY = cardScale
+                },
+        shape = RoundedCornerShape(24.dp),
         colors =
-            CardDefaults.elevatedCardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
             ),
+        border =
+            BorderStroke(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+                    ),
+                ),
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -294,53 +364,58 @@ fun AssignmentCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
-                    modifier = Modifier.size(48.dp),
+                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                    modifier = Modifier.size(44.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = (assignmentScreenData.meetingNumber).toString(),
-                            style = MaterialTheme.typography.titleLarge,
+                            text = "%02d".format(assignmentScreenData.meetingNumber),
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.tertiary,
+                            color = MaterialTheme.colorScheme.secondary,
                         )
                     }
                 }
 
-                Badge(containerColor = statusColor.copy(alpha = 0.1f), contentColor = statusColor) {
+                Badge(
+                    containerColor = statusColor.copy(alpha = 0.15f),
+                    contentColor = statusColor,
+                    modifier = Modifier.border(0.5.dp, statusColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                ) {
                     Text(
-                        statusLabel,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        fontWeight = FontWeight.Bold,
+                        text = statusLabel,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 11.sp,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                "Deskripsi Tugas",
-                style = MaterialTheme.typography.labelLarge,
+                text = "Tugas / Instruksi",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.sp,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             assignmentScreenData.description?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 24.sp,
+                    lineHeight = 22.sp,
                     color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium,
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
             Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -349,65 +424,100 @@ fun AssignmentCard(
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Batas: ${assignmentScreenData.deadline}",
+                    text = "Batas Waktu: ${assignmentScreenData.deadline}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Bold,
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                val dlInteraction = remember { MutableInteractionSource() }
+                val isDlPressed by dlInteraction.collectIsPressedAsState()
+                val dlScale by animateFloatAsState(if (isDlPressed) 0.94f else 1f, label = "dl_scale")
+
+                val viewInteraction = remember { MutableInteractionSource() }
+                val isViewPressed by viewInteraction.collectIsPressedAsState()
+                val viewScale by animateFloatAsState(if (isViewPressed) 0.94f else 1f, label = "view_scale")
+
                 assignmentScreenData.assignmentFileUrl?.let {
                     FilledTonalButton(
                         onClick = onDownloadClick,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .graphicsLayer {
+                                    scaleX = dlScale
+                                    scaleY = dlScale
+                                },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 10.dp),
+                        interactionSource = dlInteraction,
                     ) {
-                        Icon(Icons.Default.Description, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Unduh Lampiran", fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Description, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Unduh Berkas", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
 
                 assignmentScreenData.submissionFileUrl?.let {
                     OutlinedButton(
                         onClick = onViewClick,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .graphicsLayer {
+                                    scaleX = viewScale
+                                    scaleY = viewScale
+                                },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 10.dp),
+                        interactionSource = viewInteraction,
                     ) {
-                        Icon(Icons.Default.Description, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Jawaban Saya", fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Description, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Berkas Saya", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }
 
             if (!assignmentScreenData.isOverdue) {
                 Spacer(modifier = Modifier.height(12.dp))
+                val submitInteraction = remember { MutableInteractionSource() }
+                val isSubmitPressed by submitInteraction.collectIsPressedAsState()
+                val submitScale by animateFloatAsState(if (isSubmitPressed) 0.95f else 1f, label = "submit_scale")
+
                 Button(
                     onClick = onSubmitClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                scaleX = submitScale
+                                scaleY = submitScale
+                            },
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = if (assignmentScreenData.isSubmitted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                            contentColor = Color.White,
+                        ),
+                    interactionSource = submitInteraction,
                 ) {
-                    Icon(Icons.Default.FileUpload, null)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.FileUpload, null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        if (assignmentScreenData.isSubmitted) {
-                            "Ganti Jawaban"
-                        } else {
-                            "Kumpulkan Sekarang"
-                        },
-                        fontWeight = FontWeight.ExtraBold,
+                        text = if (assignmentScreenData.isSubmitted) "Ganti Jawaban Tugas" else "Kirim Jawaban Sekarang",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp,
                     )
                 }
             }

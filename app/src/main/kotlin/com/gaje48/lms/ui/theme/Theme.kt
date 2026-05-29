@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -32,7 +33,7 @@ private val DarkColorScheme =
         onSurface = OnSurfaceDark,
         surfaceVariant = SurfaceVariantDark,
         onSurfaceVariant = OnSurfaceVariantDark,
-        background = SurfaceDark,
+        background = BackgroundDark,
         onBackground = OnSurfaceDark,
     )
 
@@ -42,12 +43,25 @@ private val LightColorScheme =
         onPrimary = OnPrimaryLight,
         primaryContainer = PrimaryContainerLight,
         onPrimaryContainer = OnPrimaryContainerLight,
-        // Biarkan sisanya menggunakan default M3 yang bersih
+        secondary = SecondaryLight,
+        onSecondary = OnSecondaryLight,
+        secondaryContainer = SecondaryContainerLight,
+        onSecondaryContainer = OnSecondaryContainerLight,
+        tertiary = TertiaryLight,
+        onTertiary = OnTertiaryLight,
+        tertiaryContainer = TertiaryContainerLight,
+        onTertiaryContainer = OnTertiaryContainerLight,
+        surface = SurfaceLight,
+        onSurface = OnSurfaceLight,
+        surfaceVariant = SurfaceVariantLight,
+        onSurfaceVariant = OnSurfaceVariantLight,
+        background = BackgroundLight,
+        onBackground = OnSurfaceLight,
     )
 
 @Composable
 fun LMSUnindraTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
@@ -68,15 +82,23 @@ fun LMSUnindraTheme(
             val activity = context as? ComponentActivity
             activity?.enableEdgeToEdge(
                 statusBarStyle =
-                    SystemBarStyle.light(
-                        android.graphics.Color.TRANSPARENT,
-                        android.graphics.Color.TRANSPARENT,
-                    ),
+                    if (darkTheme) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT,
+                        )
+                    },
                 navigationBarStyle =
-                    SystemBarStyle.light(
-                        android.graphics.Color.TRANSPARENT,
-                        android.graphics.Color.TRANSPARENT,
-                    ),
+                    if (darkTheme) {
+                        SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(
+                            android.graphics.Color.TRANSPARENT,
+                            android.graphics.Color.TRANSPARENT,
+                        )
+                    },
             )
         }
     }

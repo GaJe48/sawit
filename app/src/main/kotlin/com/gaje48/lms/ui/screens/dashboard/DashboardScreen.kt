@@ -1,6 +1,18 @@
 package com.gaje48.lms.ui.screens.dashboard
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,17 +42,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
@@ -158,27 +168,37 @@ fun DashboardScreenStateless(
     onLogout: () -> Unit,
 ) {
     val hazeState = rememberHazeState()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val state = rememberPullToRefreshState()
     var showLogoutDialog by remember { mutableStateOf(false) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "dash_blobs")
+    val blobTime by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 2f * Math.PI.toFloat(),
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(25000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "blob_time",
+    )
 
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
-            icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null) },
-            title = { Text("Keluar") },
-            text = { Text("Kamu yakin mau logout? Kamu perlu login ulang untuk masuk kembali.") },
+            icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Keluar Akun", fontWeight = FontWeight.Bold) },
+            text = { Text("Apakah kamu yakin ingin logout dari sistem? Kamu perlu masuk kembali menggunakan NIM dan password.") },
             confirmButton = {
                 Button(
                     onClick = {
                         showLogoutDialog = false
                         onLogout()
                     },
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                        ),
-                ) { Text("Logout") }
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text("Logout", fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("Batal") }
@@ -190,18 +210,39 @@ fun DashboardScreenStateless(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface),
+                .background(MaterialTheme.colorScheme.background),
     ) {
         Box(
             modifier =
                 Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
+                    .size(450.dp)
+                    .graphicsLayer {
+                        translationX = (30f * kotlin.math.sin(blobTime)).dp.toPx() - 150.dp.toPx()
+                        translationY = (30f * kotlin.math.cos(blobTime)).dp.toPx() - 100.dp.toPx()
+                    }.background(
+                        Brush.radialGradient(
                             colors =
                                 listOf(
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                                    MaterialTheme.colorScheme.surface,
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                                    Color.Transparent,
+                                ),
+                        ),
+                    ),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .size(400.dp)
+                    .align(Alignment.BottomEnd)
+                    .graphicsLayer {
+                        translationX = (40f * kotlin.math.cos(blobTime + 2f)).dp.toPx() + 100.dp.toPx()
+                        translationY = (40f * kotlin.math.sin(blobTime + 2f)).dp.toPx() + 100.dp.toPx()
+                    }.background(
+                        Brush.radialGradient(
+                            colors =
+                                listOf(
+                                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.2f),
+                                    Color.Transparent,
                                 ),
                         ),
                     ),
@@ -216,7 +257,7 @@ fun DashboardScreenStateless(
                 PullToRefreshDefaults.LoadingIndicator(
                     state = state,
                     isRefreshing = isRefreshing,
-                    modifier = Modifier.padding(top = 16.dp),
+                    color = MaterialTheme.colorScheme.primary,
                 )
             },
         ) {
@@ -224,7 +265,7 @@ fun DashboardScreenStateless(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 containerColor = Color.Transparent,
                 topBar = {
-                    LargeTopAppBar(
+                    TopAppBar(
                         scrollBehavior = scrollBehavior,
                         colors =
                             TopAppBarDefaults.topAppBarColors(
@@ -239,14 +280,15 @@ fun DashboardScreenStateless(
                         title = {
                             Column {
                                 Text(
-                                    text = "Halo, ${student.studentName.substringBefore(" ")}",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    fontWeight = FontWeight.ExtraBold,
+                                    text = "Halo, ${student.studentName.substringBefore(' ')}",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
                                 )
                                 Text(
-                                    text = "Selamat datang kembali di LMS",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "Selamat datang kembali",
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium,
                                 )
                             }
                         },
@@ -255,15 +297,16 @@ fun DashboardScreenStateless(
                                 onClick = { showLogoutDialog = true },
                                 modifier =
                                     Modifier
-                                        .padding(end = 8.dp)
+                                        .padding(end = 12.dp)
                                         .background(
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                             CircleShape,
-                                        ),
+                                        ).border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ExitToApp,
                                     contentDescription = "Logout",
+                                    tint = MaterialTheme.colorScheme.error,
                                 )
                             }
                         },
@@ -278,31 +321,46 @@ fun DashboardScreenStateless(
                     contentPadding =
                         PaddingValues(
                             top = paddingValues.calculateTopPadding() + 16.dp,
-                            bottom = 24.dp,
+                            bottom = 32.dp,
                             start = 20.dp,
                             end = 20.dp,
                         ),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     item {
-                        ElevatedCard(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(32.dp),
+                        Card(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
                             colors =
-                                CardDefaults.elevatedCardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                ),
+                            border =
+                                BorderStroke(
+                                    1.dp,
+                                    Brush.linearGradient(
+                                        listOf(
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+                                        ),
+                                    ),
                                 ),
                         ) {
                             Row(
-                                modifier = Modifier.padding(24.dp),
+                                modifier = Modifier.padding(20.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Surface(
                                     shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f),
-                                    modifier = Modifier.size(84.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    modifier =
+                                        Modifier
+                                            .size(76.dp)
+                                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
                                 ) {
-                                    if (student.studentProfilePictureUrl != null) {
+                                    if (!student.studentProfilePictureUrl.isNullOrEmpty()) {
                                         AsyncImage(
                                             model = student.studentProfilePictureUrl,
                                             contentDescription = "Foto Profil",
@@ -316,42 +374,37 @@ fun DashboardScreenStateless(
                                         Icon(
                                             Icons.Default.Person,
                                             contentDescription = null,
-                                            modifier = Modifier.padding(12.dp),
-                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary,
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(20.dp))
-                                Column {
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = student.studentName,
                                         style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     Text(
-                                        text = student.npm,
+                                        text = "NPM: ${student.npm}",
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Medium,
+                                        fontWeight = FontWeight.Bold,
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(6.dp))
                                     Badge(
-                                        containerColor =
-                                            MaterialTheme.colorScheme.onPrimaryContainer.copy(
-                                                alpha = 0.1f,
-                                            ),
-                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
+                                        contentColor = MaterialTheme.colorScheme.secondary,
                                     ) {
                                         Text(
-                                            student.studyProgram,
-                                            modifier =
-                                                Modifier.padding(
-                                                    horizontal = 8.dp,
-                                                    vertical = 2.dp,
-                                                ),
+                                            text = student.studyProgram,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
                                         )
                                     }
                                 }
@@ -371,26 +424,26 @@ fun DashboardScreenStateless(
                                 EmptyGif(label = "Belum ada jadwal mata kuliah")
                             }
                         }
-
                         return@LazyColumn
                     }
 
                     item {
                         Text(
-                            text = "Jadwal Mata Kuliah",
-                            style = MaterialTheme.typography.headlineSmall,
+                            text = "Jadwal Kuliah Anda",
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
-                            modifier = Modifier.padding(vertical = 8.dp),
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
 
                     items(courses.zip(allAttendances)) { (course, attendancesByCourse) ->
                         CourseCard(
-                            course,
-                            attendancesByCourse,
-                            onCourseClick,
-                            onAttendanceClick,
-                            onAssignmentClick,
+                            course = course,
+                            attendancesByCourse = attendancesByCourse,
+                            onCourseClick = onCourseClick,
+                            onAttendanceClick = onAttendanceClick,
+                            onAssignmentClick = onAssignmentClick,
                         )
                     }
                 }
@@ -407,17 +460,38 @@ fun CourseCard(
     onAttendanceClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(if (isPressed) 0.97f else 1f, label = "card_scale")
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = cardScale
+                    scaleY = cardScale
+                },
         onClick = { onCourseClick(course.courseCode) },
-        shape = RoundedCornerShape(32.dp),
+        shape = RoundedCornerShape(24.dp),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
             ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border =
+            BorderStroke(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f),
+                    ),
+                ),
+            ),
+        interactionSource = interactionSource,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top,
@@ -425,62 +499,73 @@ fun CourseCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = course.lecturerName,
-                        style = MaterialTheme.typography.labelLarge,
+                        text = course.lecturerName.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = course.courseName,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        lineHeight = 28.sp,
+                        lineHeight = 24.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                    modifier = Modifier.size(44.dp),
                 ) {
                     Icon(
                         Icons.Default.School,
                         contentDescription = null,
-                        modifier = Modifier.padding(12.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(10.dp),
+                        tint = MaterialTheme.colorScheme.secondary,
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                InfoChip(icon = Icons.Default.CalendarMonth, text = course.day)
-                InfoChip(icon = Icons.Default.MeetingRoom, text = course.room)
+                InfoChip(
+                    icon = Icons.Default.CalendarMonth,
+                    text = course.day,
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                    contentColor = MaterialTheme.colorScheme.primary,
+                )
+                InfoChip(
+                    icon = Icons.Default.MeetingRoom,
+                    text = "Ruang " + course.room,
+                    containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.08f),
+                    contentColor = MaterialTheme.colorScheme.tertiary,
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             AttendanceGraph(attendancesByCourse.attendances)
 
-            Spacer(modifier = Modifier.height(20.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f),
                 ) {
                     Icon(
                         Icons.Default.Timer,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -488,30 +573,58 @@ fun CourseCard(
                         text = course.clock,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SuggestionChip(
-                        onClick = { onAttendanceClick(course.courseCode) },
-                        label = { Text("Absen", fontSize = 12.sp) },
-                        shape = RoundedCornerShape(12.dp),
-                        border = null,
-                        colors =
-                            SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                            ),
-                    )
-                    SuggestionChip(
-                        onClick = { onAssignmentClick(course.courseCode) },
-                        label = { Text("Tugas", fontSize = 12.sp) },
-                        shape = RoundedCornerShape(12.dp),
-                        border = null,
-                        colors =
-                            SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
-                            ),
-                    )
+                    val abInteraction = remember { MutableInteractionSource() }
+                    val isAbPressed by abInteraction.collectIsPressedAsState()
+                    val abScale by animateFloatAsState(if (isAbPressed) 0.9f else 1f, label = "ab")
+
+                    val tgInteraction = remember { MutableInteractionSource() }
+                    val isTgPressed by tgInteraction.collectIsPressedAsState()
+                    val tgScale by animateFloatAsState(if (isTgPressed) 0.9f else 1f, label = "tg")
+
+                    Box(
+                        modifier =
+                            Modifier
+                                .graphicsLayer {
+                                    scaleX = abScale
+                                    scaleY = abScale
+                                }.clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                .clickable(interactionSource = abInteraction, indication = null) {
+                                    onAttendanceClick(course.courseCode)
+                                }.padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            "Presensi",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                        )
+                    }
+
+                    Box(
+                        modifier =
+                            Modifier
+                                .graphicsLayer {
+                                    scaleX = tgScale
+                                    scaleY = tgScale
+                                }.clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
+                                .clickable(interactionSource = tgInteraction, indication = null) {
+                                    onAssignmentClick(course.courseCode)
+                                }.padding(horizontal = 14.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            "Tugas",
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                        )
+                    }
                 }
             }
         }
@@ -524,26 +637,26 @@ fun InfoChip(
     text: String,
     containerColor: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
     contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    fontWeight: FontWeight = FontWeight.Medium,
+    fontWeight: FontWeight = FontWeight.Bold,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier =
             Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(containerColor)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Icon(
             icon,
             contentDescription = null,
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(13.dp),
             tint = contentColor,
         )
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(4.dp))
         Text(
             text = text,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = contentColor,
             fontWeight = fontWeight,
         )
@@ -553,37 +666,47 @@ fun InfoChip(
 @Composable
 fun AttendanceGraph(attendances: List<Boolean>) {
     val attendedCount = attendances.count { it }
-
     val percentage =
         if (attendances.isNotEmpty()) {
             ((attendedCount.toDouble() / attendances.size) * 100).roundToInt()
         } else {
             0
         }
-
     val upcomingCount = maxOf(0, 16 - attendances.size)
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Kehadiran $percentage% ($attendedCount/${attendances.size})",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Track Kehadiran",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "$percentage% ($attendedCount/${attendances.size})",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (percentage >= 75) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Black,
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth(),
         ) {
             attendances.forEach { isPresent ->
-                val boxColor = if (isPresent) Color(0xFF4CAF50) else Color(0xFFF44336)
-
+                val boxColor = if (isPresent) Color(0xFF10B981) else Color(0xFFEF4444)
                 Box(
                     modifier =
                         Modifier
-                            .size(14.dp)
+                            .weight(1f)
+                            .height(10.dp)
                             .clip(RoundedCornerShape(3.dp))
                             .background(boxColor),
                 )
@@ -593,9 +716,10 @@ fun AttendanceGraph(attendances: List<Boolean>) {
                 Box(
                     modifier =
                         Modifier
-                            .size(14.dp)
+                            .weight(1f)
+                            .height(10.dp)
                             .clip(RoundedCornerShape(3.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
                 )
             }
         }
