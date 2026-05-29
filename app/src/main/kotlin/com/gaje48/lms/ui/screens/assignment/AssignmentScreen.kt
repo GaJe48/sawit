@@ -288,7 +288,7 @@ fun AssignmentScreen(
                             AssignmentCard(
                                 assignmentScreenData = assignmentScreenData,
                                 onDownloadClick = {
-                                    assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadAssignmentFile)
+                                    assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadQuestion)
                                 },
                                 onViewClick = {
                                     assignmentScreenData.submissionFileUrl?.let(uriHandler::openUri)

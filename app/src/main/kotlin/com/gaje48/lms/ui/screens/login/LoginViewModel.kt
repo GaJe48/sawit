@@ -34,28 +34,28 @@ class LoginViewModel(
         nim: String,
         pwd: String,
     ) {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            authRepository
-                .login(nim, pwd)
-                .onSuccess {
-                    lmsRepository
-                        .login()
-                        .onSuccess {
-                            authRepository.saveCredentials(nim, pwd)
-                            _uiState.update { it.copy(isLoading = false, errorMessage = null) }
-                        }.onFailure {
-                            setError(it.message ?: "Gagal memuat data akademik")
-                        }
-                }.onFailure { exception ->
-                    val friendlyMessage =
-                        when (exception) {
-                            is uniffi.lms_rust.LmsException.CredentialException -> "NIM atau Password salah"
-                            is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah"
-                            else -> exception.message ?: "Terjadi kesalahan saat login"
-                        }
-                    setError(friendlyMessage)
-                }
+            val authResult = authRepository.login(nim, pwd)
+            authResult.onFailure { exception ->
+                val friendlyMessage =
+                    when (exception) {
+                        is uniffi.lms_rust.LmsException.CredentialException -> "NIM atau Password salah"
+                        is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah"
+                        else -> exception.message ?: "Terjadi kesalahan saat login"
+                    }
+                setError(friendlyMessage)
+                return@launch
+            }
+
+            val lmsResult = lmsRepository.login()
+            lmsResult.onFailure {
+                setError(it.message ?: "Gagal memuat data akademik")
+                return@launch
+            }
+
+            authRepository.saveCredentials(nim, pwd)
         }
     }
 }

@@ -92,60 +92,69 @@ class AssignmentViewModel(
         notificationHelper.showUploadStarted(notifId)
 
         viewModelScope.launch {
-            lmsRepository
-                .uploadSubmission(uri, assignmentUrl) { fileName, progress ->
-                    notificationHelper.showUploadProgress(notifId, fileName, progress)
-                }.onSuccess { fileName ->
-                    notificationHelper.showUploadCompleting(notifId, fileName)
+            val fileName =
+                lmsRepository
+                    .uploadSubmission(uri, assignmentUrl) { name, progress ->
+                        notificationHelper.showUploadProgress(notifId, name, progress)
+                    }.getOrElse { exception ->
+                        val msg = exception.message ?: "Gagal mengunggah tugas"
+                        notificationHelper.showUploadFailure(notifId, msg)
+                        _snackbarEvent.trySend(msg)
 
-                    lmsRepository
-                        .syncAssignment(
-                            assignmentUrl,
-                            uiState.value.assignmentScreenDatas
-                                .first()
-                                .meetingUrl,
-                        ).onSuccess { notificationHelper.showUploadSuccess(notifId, fileName) }
-                        .onFailure {
-                            _snackbarEvent.trySend(
-                                it.message ?: "Gagal memperbarui data",
-                            )
-                        }
-                }.onFailure {
-                    val msg = it.message ?: "Gagal mengunggah tugas"
-                    notificationHelper.showUploadFailure(notifId, msg)
-                    _snackbarEvent.trySend(msg)
+                        return@launch
+                    }
+
+            notificationHelper.showUploadCompleting(notifId, fileName)
+
+            val meetingUrl =
+                uiState.value.assignmentScreenDatas
+                    .firstOrNull()
+                    ?.meetingUrl
+            if (meetingUrl == null) {
+                _snackbarEvent.trySend("Data pertemuan tidak ditemukan")
+                return@launch
+            }
+
+            lmsRepository
+                .syncAssignment(assignmentUrl, meetingUrl)
+                .onSuccess {
+                    notificationHelper.showUploadSuccess(notifId, fileName)
+                }.onFailure { exception ->
+                    _snackbarEvent.trySend(exception.message ?: "Gagal memperbarui data")
                 }
         }
     }
 
-    fun downloadAssignmentFile(fileUrl: String) {
+    fun downloadQuestion(fileUrl: String) {
         val state = uiState.value
-        val meetingNumber =
-            state.assignmentScreenDatas.find { it.assignmentFileUrl == fileUrl }?.meetingNumber
-                ?: run {
-                    _snackbarEvent.trySend("Gagal membuat nama berkas")
-                    return
-                }
-        val courseName =
-            state.courseName?.replace(' ', '-') ?: run {
-                _snackbarEvent.trySend("Gagal membuat nama berkas")
-                return
-            }
-        val rawFileName = "Tugas_${courseName}_Pertemuan-$meetingNumber"
 
+        val meetingNumber = state.assignmentScreenDatas.find { it.assignmentFileUrl == fileUrl }?.meetingNumber
+        val courseName = state.courseName?.replace(' ', '-')
+
+        if (meetingNumber == null || courseName == null) {
+            _snackbarEvent.trySend("Gagal membuat nama berkas")
+            return
+        }
+
+        val rawFileName = "Tugas_${courseName}_Pertemuan-$meetingNumber"
         val notifId = System.currentTimeMillis().toInt()
+
         notificationHelper.showDownloadStarted(notifId)
 
         viewModelScope.launch {
-            lmsRepository
-                .downloadFile(fileUrl, rawFileName) { fileName, progress ->
-                    notificationHelper.showDownloadProgress(notifId, fileName, progress)
-                }.onSuccess { notificationHelper.showDownloadSuccess(notifId, it) }
-                .onFailure {
-                    val msg = it.message ?: "Gagal mengunduh berkas"
-                    notificationHelper.showDownloadFailure(notifId, msg)
-                    _snackbarEvent.trySend(msg)
-                }
+            val downloadedFileName =
+                lmsRepository
+                    .downloadFile(fileUrl, rawFileName) { name, progress ->
+                        notificationHelper.showDownloadProgress(notifId, name, progress)
+                    }.getOrElse { exception ->
+                        val msg = exception.message ?: "Gagal mengunduh berkas"
+                        notificationHelper.showDownloadFailure(notifId, msg)
+                        _snackbarEvent.trySend(msg)
+
+                        return@launch
+                    }
+
+            notificationHelper.showDownloadSuccess(notifId, downloadedFileName)
         }
     }
 }

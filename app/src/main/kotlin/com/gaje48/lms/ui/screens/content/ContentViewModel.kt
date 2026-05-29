@@ -95,35 +95,33 @@ class ContentViewModel(
         notificationHelper.showDownloadStarted(notifId)
 
         viewModelScope.launch {
-            val contentVmData =
-                contentVmDatas
-                    .first()
-                    .find { it.contentUrl == fileUrl } ?: run {
-                    _snackbarEvent.trySend("Gagal membuat nama berkas")
+            val contentVmData = contentVmDatas.first().find { it.contentUrl == fileUrl }
+            if (contentVmData == null) {
+                _snackbarEvent.trySend("Gagal membuat nama berkas")
+                return@launch
+            }
+
+            val courseCode = contentVmData.courseCode
+            val fileName =
+                "Materi_${contentVmData.courseName}_Pertemuan-${contentVmData.meetingNumber}_${contentVmData.title}"
+                    .replace(' ', '-')
+
+            lmsRepository
+                .downloadFile(fileUrl, fileName) { name, progress ->
+                    notificationHelper.showDownloadProgress(notifId, name, progress)
+                }.onSuccess { downloadedData ->
+                    notificationHelper.showDownloadSuccess(notifId, downloadedData)
+                }.onFailure { exception ->
+                    val msg = exception.message ?: "Gagal mengunduh berkas"
+                    notificationHelper.showDownloadFailure(notifId, msg)
+                    _snackbarEvent.trySend(msg)
+
                     return@launch
                 }
 
-            val courseCode = contentVmData.courseCode
-            val courseName = contentVmData.courseName
-            val meetingNumber = contentVmData.meetingNumber
-            val title = contentVmData.title
-
-            val fileName = "Materi_${courseName}_Pertemuan-${meetingNumber}_$title".replace(' ', '-')
-
-            lmsRepository
-                .downloadFile(fileUrl, fileName) { fileName, progress ->
-                    notificationHelper.showDownloadProgress(notifId, fileName, progress)
-                }.onSuccess {
-                    notificationHelper.showDownloadSuccess(notifId, it)
-
-                    lmsRepository.syncAttendancesByCourse(courseCode).onFailure { e ->
-                        _snackbarEvent.trySend(e.message ?: "Gagal memperbarui data")
-                    }
-                }.onFailure {
-                    val msg = it.message ?: "Gagal mengunduh berkas"
-                    notificationHelper.showDownloadFailure(notifId, msg)
-                    _snackbarEvent.trySend(msg)
-                }
+            lmsRepository.syncAttendancesByCourse(courseCode).onFailure { exception ->
+                _snackbarEvent.trySend(exception.message ?: "Gagal memperbarui data")
+            }
         }
     }
 }

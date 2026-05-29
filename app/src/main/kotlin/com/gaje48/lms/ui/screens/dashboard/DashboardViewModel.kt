@@ -60,11 +60,11 @@ class DashboardViewModel(
 
         viewModelScope.launch {
             lmsRepository.syncAll().onFailure {
-                val mess = it.message ?: "Gagal memperbarui data"
+                val msg = it.message ?: "Gagal memperbarui data"
                 if (uiState.value.courses.isEmpty()) {
-                    _errorMessage.value = mess
+                    _errorMessage.value = msg
                 } else {
-                    _snackbarEvent.trySend(mess)
+                    _snackbarEvent.trySend(msg)
                 }
             }
 

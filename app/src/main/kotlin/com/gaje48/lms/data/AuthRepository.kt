@@ -24,9 +24,7 @@ class AuthRepository(
     suspend fun checkLoginStatus(
         nim: String,
         pwd: String,
-    ) = runCatching {
-        internetDataSource.cookieRenewed(nim, pwd)
-    }.onFailure { exception ->
+    ) = runCatching { internetDataSource.cookieRenewed(nim, pwd) }.onFailure { exception ->
         if (exception is uniffi.lms_rust.LmsException.CredentialException) {
             clearCredential()
         }
@@ -35,9 +33,7 @@ class AuthRepository(
     suspend fun login(
         nim: String,
         pwd: String,
-    ) = runCatching {
-        internetDataSource.cookieRenewed(nim, pwd)
-    }
+    ) = runCatching { internetDataSource.cookieRenewed(nim, pwd) }
 
     suspend fun saveCredentials(
         nim: String,

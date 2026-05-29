@@ -50,14 +50,9 @@ class MeetingViewModel(
             _isRefreshing.value = true
             _errorMessage.value = null
 
-            lmsRepository.syncAll().onFailure { e ->
-                e.message?.let {
-                    if (uiState.value.meetings.isEmpty()) {
-                        _errorMessage.value = it
-                    } else {
-                        _errorMessage.value = it
-                    }
-                }
+            lmsRepository.syncAll().onFailure {
+                val msg = it.message ?: "Gagal memperbarui data"
+                _errorMessage.value = msg
             }
             _isRefreshing.value = false
         }
