@@ -45,13 +45,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,6 +77,7 @@ import com.gaje48.lms.model.UpdateAction
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.ErrorGif
 import com.gaje48.lms.ui.components.LoadingGif
+import com.gaje48.lms.ui.components.SyncIndicator
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -231,10 +231,9 @@ fun AttendanceScreenStateless(
             onRefresh = onRefresh,
             contentAlignment = Alignment.TopCenter,
             indicator = {
-                PullToRefreshDefaults.LoadingIndicator(
+                SyncIndicator(
                     state = pullToRefreshState,
                     isRefreshing = isRefreshing,
-                    color = MaterialTheme.colorScheme.primary,
                 )
             },
         ) {

@@ -47,15 +47,14 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,6 +81,7 @@ import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Student
 import com.gaje48.lms.ui.components.EmptyGif
+import com.gaje48.lms.ui.components.SyncIndicator
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -254,10 +254,9 @@ fun DashboardScreenStateless(
             onRefresh = onRefresh,
             contentAlignment = Alignment.TopCenter,
             indicator = {
-                PullToRefreshDefaults.LoadingIndicator(
+                SyncIndicator(
                     state = state,
                     isRefreshing = isRefreshing,
-                    color = MaterialTheme.colorScheme.primary,
                 )
             },
         ) {
