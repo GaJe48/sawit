@@ -12,6 +12,8 @@ class NotificationHelper(
     private companion object {
         const val CHANNEL_ID = "lms"
         const val CHANNEL_NAME = "ELemES"
+        const val CHANNEL_ID_DEFAULT = "lms_default"
+        const val CHANNEL_NAME_DEFAULT = "ELemES Biasa"
         const val GROUP_KEY = "lms_transfers"
         const val SUMMARY_ID = 9999
     }
@@ -20,21 +22,28 @@ class NotificationHelper(
         context
             .getSystemService(NotificationManager::class.java)
             .apply {
-                createNotificationChannel(
-                    NotificationChannel(
-                        CHANNEL_ID,
-                        CHANNEL_NAME,
-                        NotificationManager.IMPORTANCE_HIGH,
-                    ),
+                createNotificationChannels(
+                    listOf(
+                        NotificationChannel(
+                            CHANNEL_ID,
+                            CHANNEL_NAME,
+                            NotificationManager.IMPORTANCE_HIGH,
+                        ),
+                        NotificationChannel(
+                            CHANNEL_ID_DEFAULT,
+                            CHANNEL_NAME_DEFAULT,
+                            NotificationManager.IMPORTANCE_DEFAULT,
+                        ),
+                    )
                 )
             }
     private val lastNotifUpdate = mutableMapOf<Int, Long>()
 
-    private fun notifBuilder() = Notification.Builder(context, CHANNEL_ID)
+    private fun notifBuilder() = Notification.Builder(context, CHANNEL_ID_DEFAULT)
 
     private fun updateGroupSummary() {
         Notification
-            .Builder(context, CHANNEL_ID)
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(R.drawable.notification_icon)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
