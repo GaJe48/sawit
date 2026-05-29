@@ -286,87 +286,6 @@ impl InternetDataSource {
         })
     }
 
-    async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
-        static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
-        static CELL: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("td:nth-child(n+2):nth-child(-n+3)").unwrap());
-        static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
-
-        let attend_html = self
-            .web
-            .get("https://lms.unindra.ac.id/presensi")
-            .send()
-            .await?
-            .text()
-            .await?;
-
-        let futures = {
-            let attend_parser = Html::parse_document(&attend_html);
-
-            attend_parser
-                .select(&ROW)
-                .map(|row| {
-                    let mut cells = row.select(&CELL);
-
-                    let course_code = cells
-                        .next()
-                        .and_then(|el| el.text().next())
-                        .ok_or_else(|| LmsError::ParserError {
-                            msg: "Failed to parse course code from attendance table row".to_string(),
-                        })?
-                        .trim()
-                        .to_string();
-
-                    let (kode_jadwal_id, nim_id) = cells
-                        .next()
-                        .and_then(|el| {
-                            let mut parts = el.attr("onclick")?.split('\'');
-
-                            let kode = parts.nth(1)?.to_string();
-                            let nim = parts.nth(1)?.to_string();
-
-                            Some((kode, nim))
-                        })
-                        .ok_or_else(|| LmsError::ParserError {
-                            msg: "Failed to parse course schedule ID and student NIM from row onclick attribute".to_string(),
-                        })?;
-
-                    let client = &self.web;
-
-                    Ok(async move {
-                        let html = client
-                            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
-                            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
-                            .send()
-                            .await?
-                            .text()
-                            .await?;
-
-                        let parser = Html::parse_document(&html);
-
-                        let list = (1i8..)
-                            .zip(parser.select(&ATTEND))
-                            .map(|(index, cell)| AttendanceEntity {
-                                course_code: course_code.clone(),
-                                index,
-                                is_attended: cell
-                                    .value()
-                                    .classes()
-                                    .any(|c| c == "fa-calendar-check-o"),
-                            })
-                            .collect::<Vec<_>>();
-
-                        Ok::<Vec<_>, LmsError>(list)
-                    })
-                })
-                .collect::<Result<Vec<_>, LmsError>>()?
-        };
-
-        let results = try_join_all(futures).await?;
-
-        Ok(results.into_iter().flatten().collect())
-    }
-
     async fn fetch_attendances_by_course(
         &self,
         course_code: String,
@@ -703,7 +622,7 @@ impl InternetDataSource {
     }
 
     fn parse_student(dashboard_html: &Html) -> Result<Student, LmsError> {
-        const NO_PIC_Z: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        const NO_PIC_Z: &str = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
         static NAME: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".user-header p").unwrap());
@@ -762,7 +681,7 @@ impl InternetDataSource {
                     .select(&IMG)
                     .nth(1)
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| !url.starts_with(NO_PIC_Z))
+                    .filter(|url| !url.contains(NO_PIC_Z))
                     .map(String::from)
             });
 
@@ -776,8 +695,8 @@ impl InternetDataSource {
     }
 
     fn parse_courses(dashboard_html: &Html) -> Result<Vec<Course>, LmsError> {
-        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
-        const NO_PIC_Z: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        const NO_PIC: &str = "UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
+        const NO_PIC_Z: &str = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
 
         static CARD: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".box-widget").unwrap());
         static LECTURER: LazyLock<Selector> = LazyLock::new(|| Selector::parse("h3").unwrap());
@@ -810,7 +729,7 @@ impl InternetDataSource {
                     .select(&IMG)
                     .next()
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| *url != NO_PIC && !url.starts_with(NO_PIC_Z))
+                    .filter(|url| !url.ends_with(NO_PIC) && !url.contains(NO_PIC_Z))
                     .map(String::from);
 
                 let mut spans = el.select(&INFO);
@@ -950,6 +869,87 @@ impl InternetDataSource {
         Ok(meetings.into_iter().flatten().collect())
     }
 
+    async fn fetch_attendances(&self) -> Result<Vec<AttendanceEntity>, LmsError> {
+        static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
+        static CELL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("td:nth-child(n+2):nth-child(-n+3)").unwrap());
+        static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
+
+        let attend_html = self
+            .web
+            .get("https://lms.unindra.ac.id/presensi")
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let futures = {
+            let attend_parser = Html::parse_document(&attend_html);
+
+            attend_parser
+                .select(&ROW)
+                .map(|row| {
+                    let mut cells = row.select(&CELL);
+
+                    let course_code = cells
+                        .next()
+                        .and_then(|el| el.text().next())
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Failed to parse course code from attendance table row".to_string(),
+                        })?
+                        .trim()
+                        .to_string();
+
+                    let (kode_jadwal_id, nim_id) = cells
+                        .next()
+                        .and_then(|el| {
+                            let mut parts = el.attr("onclick")?.split('\'');
+
+                            let kode = parts.nth(1)?.to_string();
+                            let nim = parts.nth(1)?.to_string();
+
+                            Some((kode, nim))
+                        })
+                        .ok_or_else(|| LmsError::ParserError {
+                            msg: "Failed to parse course schedule ID and student NIM from row onclick attribute".to_string(),
+                        })?;
+
+                    let client = &self.web;
+
+                    Ok(async move {
+                        let html = client
+                            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
+                            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
+                            .send()
+                            .await?
+                            .text()
+                            .await?;
+
+                        let parser = Html::parse_document(&html);
+
+                        let list = (1i8..)
+                            .zip(parser.select(&ATTEND))
+                            .map(|(index, cell)| AttendanceEntity {
+                                course_code: course_code.clone(),
+                                index,
+                                is_attended: cell
+                                    .value()
+                                    .classes()
+                                    .any(|c| c == "fa-calendar-check-o"),
+                            })
+                            .collect::<Vec<_>>();
+
+                        Ok::<Vec<_>, LmsError>(list)
+                    })
+                })
+                .collect::<Result<Vec<_>, LmsError>>()?
+        };
+
+        let results = try_join_all(futures).await?;
+
+        Ok(results.into_iter().flatten().collect())
+    }
+
     async fn fetch_contents(&self, meeting_url: &str) -> Result<Vec<ContentEntity>, LmsError> {
         static ROW: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("tr div:nth-child(1)").unwrap());
@@ -990,7 +990,7 @@ impl InternetDataSource {
                         .next()
                         .and_then(|el| el.value().classes().find(|c| c.starts_with("fa-")))
                         .unwrap_or_else(|| {
-                            if link.starts_with("https://lms.unindra.ac.id/member_tugas") {
+                            if link.contains("member_tugas") {
                                 "fa-suitcase"
                             } else {
                                 "fa-pdf"
@@ -1011,7 +1011,7 @@ impl InternetDataSource {
                     let meeting_url_str = meeting_url.to_string();
 
                     Ok(async move {
-                        let real_link = if link.starts_with("https://lms.unindra.ac.id/member_url")
+                        let real_link = if link.contains("member_url")
                         {
                             client.get(&link).send().await?.text().await?
                         } else {
@@ -1039,7 +1039,7 @@ impl InternetDataSource {
         fk_meeting_url: String,
         pk_assignment_url: String,
     ) -> Result<(AssignmentEntity, Option<(String, String)>), LmsError> {
-        const BASE64_NO_PIC_A: &str = "dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
+        const POSTFIX_NO_PIC_A: &str = "dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
 
         static MSG: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
@@ -1103,7 +1103,7 @@ impl InternetDataSource {
             .select(&IMAGE)
             .next()
             .and_then(|el| el.attr("src"))
-            .filter(|url| !url.ends_with(BASE64_NO_PIC_A))
+            .filter(|url| !url.ends_with(POSTFIX_NO_PIC_A))
             .map(String::from);
 
         let lecturer_key_value = name.zip(profile_picture_url);
@@ -1197,7 +1197,7 @@ fn extract_file_url(a_tag: ElementRef) -> Option<String> {
 
     a_tag
         .attr("href")
-        .filter(|href| href.starts_with("https://lms.unindra.ac.id/pertemuan/force_download"))
+        .filter(|href| href.contains("force_download"))
         .map(String::from)
 }
 

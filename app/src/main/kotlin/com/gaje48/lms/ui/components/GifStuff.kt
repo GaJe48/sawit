@@ -53,7 +53,7 @@ fun LoadingGif(
         verticalArrangement = Arrangement.Center,
     ) {
         AsyncImage(
-            model = R.drawable.evernight,
+            model = R.raw.evernight,
             imageLoader = imageLoader,
             contentDescription = "Loading",
             modifier = Modifier.size(size),
@@ -85,7 +85,7 @@ fun EmptyGif(
         verticalArrangement = Arrangement.Center,
     ) {
         AsyncImage(
-            model = R.drawable.chen,
+            model = R.raw.chen,
             imageLoader = imageLoader,
             contentDescription = "Kosong",
             modifier = Modifier.width(size),
@@ -119,7 +119,7 @@ fun ErrorGif(
         verticalArrangement = Arrangement.Center,
     ) {
         AsyncImage(
-            model = R.drawable.bocchi,
+            model = R.raw.bocchi,
             imageLoader = imageLoader,
             contentDescription = "Kosong",
             modifier = Modifier.width(size),
