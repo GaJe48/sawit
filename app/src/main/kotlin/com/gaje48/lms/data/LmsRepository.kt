@@ -92,10 +92,10 @@ class LmsRepository(
             }
         }
 
-    suspend fun syncAttendances() =
+    suspend fun syncAttendancesByCourse(courseCode: String) =
         runCatching {
             withContext(Dispatchers.IO) {
-                val attendances = runAuthenticated { internetDataSource.fetchAttendances() }
+                val attendances = runAuthenticated { internetDataSource.fetchAttendancesByCourse(courseCode) }
 
                 attendanceDao.save(attendances.map { it.toEntity() })
             }
@@ -142,7 +142,7 @@ class LmsRepository(
         }
     }
 
-    suspend fun uploadTask(
+    suspend fun uploadSubmission(
         uri: Uri,
         taskUrl: String,
         onProgress: (fileName: String, progress: Float) -> Unit,

@@ -100,13 +100,13 @@ class AttendanceViewModel(
     }
 
     fun processAttendance(urls: List<String>) {
-        viewModelScope.launch {
-            _isProcessingAttendance.value = true
+        _isProcessingAttendance.value = true
 
+        viewModelScope.launch {
             lmsRepository
                 .executeAttendances(urls)
                 .onSuccess {
-                    lmsRepository.syncAttendances().onFailure {
+                    lmsRepository.syncAttendancesByCourse(courseCode).onFailure {
                         _snackbarEvent.trySend(it.message ?: "Gagal memperbarui data")
                     }
                 }.onFailure {

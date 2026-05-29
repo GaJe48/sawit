@@ -192,21 +192,21 @@ fun DashboardScreenStateless(
                     Icons.AutoMirrored.Filled.ExitToApp,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(28.dp),
                 )
             },
             title = {
                 Text(
                     text = "Keluar Akun",
                     fontWeight = FontWeight.ExtraBold,
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
                 )
             },
             text = {
                 Text(
                     text = "Apakah kamu yakin ingin logout dari sistem? Kamu perlu masuk kembali menggunakan NIM dan password.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             },
             confirmButton = {
@@ -215,10 +215,11 @@ fun DashboardScreenStateless(
                         showLogoutDialog = false
                         onLogout()
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    ),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
                     shape = RoundedCornerShape(14.dp),
                 ) { Text("Logout", fontWeight = FontWeight.Bold) }
             },
@@ -227,22 +228,23 @@ fun DashboardScreenStateless(
                     Text(
                         "Batal",
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             },
-            modifier = Modifier
-                .border(
-                    width = 1.dp,
-                    brush = Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
-                        ),
-                    ),
-                    shape = RoundedCornerShape(24.dp),
-                )
-                .clip(RoundedCornerShape(24.dp)),
+            modifier =
+                Modifier
+                    .border(
+                        width = 1.dp,
+                        brush =
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+                                ),
+                            ),
+                        shape = RoundedCornerShape(24.dp),
+                    ).clip(RoundedCornerShape(24.dp)),
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
         )
     }

@@ -31,7 +31,7 @@ use scraper::{ElementRef, Html, Selector};
 struct Student {
     name: String,
     npm: String,
-    study_program: String,
+    study: String,
     class_name: Option<String>,
     profile_picture_url: Option<String>,
 }
@@ -145,7 +145,7 @@ impl InternetDataSource {
     }
 
     async fn cookie_renewed(&self, nim: String, pwd: String) -> Result<(), LmsError> {
-        static INPUT_SEL: LazyLock<Selector> =
+        static INPUT: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("[type=hidden]").unwrap());
 
         let html = self
@@ -159,7 +159,7 @@ impl InternetDataSource {
         let (t_csrf, random_name, random_value) = {
             let document = Html::parse_document(&html);
 
-            let mut inputs = document.select(&INPUT_SEL);
+            let mut inputs = document.select(&INPUT);
 
             let t = inputs
                 .next()
@@ -370,6 +370,77 @@ impl InternetDataSource {
         let results = try_join_all(futures).await?;
 
         Ok(results.into_iter().flatten().collect())
+    }
+
+    async fn fetch_attendances_by_course(
+        &self,
+        course_code: String,
+    ) -> Result<Vec<AttendanceEntity>, LmsError> {
+        static ROW: LazyLock<Selector> = LazyLock::new(|| Selector::parse("tbody tr").unwrap());
+        static CELL: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("td:nth-child(n+2):nth-child(-n+3)").unwrap());
+        static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
+
+        let attend_html = self
+            .web
+            .get("https://lms.unindra.ac.id/presensi")
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let (kode_jadwal_id, nim_id) = {
+            let attend_parser = Html::parse_document(&attend_html);
+
+            attend_parser
+                .select(&ROW)
+                .find_map(|row| {
+                    let mut cells = row.select(&CELL);
+
+                    let target_course = cells.next().and_then(|el| el.text().next())?.trim();
+
+                    if target_course != course_code {
+                        return None;
+                    }
+
+                    cells.next().and_then(|el| {
+                        let mut parts = el.attr("onclick")?.split('\'');
+
+                        let kode = parts.nth(1)?.to_string();
+                        let nim = parts.nth(1)?.to_string();
+
+                        Some((kode, nim))
+                    })
+                })
+                .ok_or_else(|| LmsError::ParserError {
+                    msg: format!(
+                        "Course code '{}' not found in attendance table",
+                        course_code
+                    ),
+                })?
+        };
+
+        let html = self
+            .web
+            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
+            .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        let parser = Html::parse_document(&html);
+
+        let list = (1i8..)
+            .zip(parser.select(&ATTEND))
+            .map(|(index, cell)| AttendanceEntity {
+                course_code: course_code.to_string(),
+                index,
+                is_attended: cell.value().classes().any(|c| c == "fa-calendar-check-o"),
+            })
+            .collect::<Vec<_>>();
+
+        Ok(list)
     }
 
     async fn fetch_assignment(
@@ -671,7 +742,7 @@ impl InternetDataSource {
             })?
             .to_string();
 
-        let study_program = dashboard_html
+        let study = dashboard_html
             .select(&STUDY)
             .next()
             .and_then(|el| el.text().next())
@@ -703,7 +774,7 @@ impl InternetDataSource {
         Ok(Student {
             name,
             npm,
-            study_program,
+            study,
             class_name,
             profile_picture_url,
         })
@@ -1398,6 +1469,36 @@ mod tests {
                 .iter()
                 .all(|attendance| !attendance.course_code.trim().is_empty()),
             "semua course_code harus terisi"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "login ke LMS asli, membutuhkan jaringan, captcha OCR, dan kredensial di cookie_renewed"]
+    async fn fetch_attendances_by_course_with_cookie() {
+        let internet_data_source = InternetDataSource::new();
+
+        login_helper(&internet_data_source).await;
+
+        let result = internet_data_source
+            .fetch_attendances_by_course("KB43J435".to_string())
+            .await
+            .unwrap();
+
+        println!("parsed {} attendances for course KB43J435", result.len());
+
+        for att in &result {
+            println!("index: {}, attended: {}", att.index, att.is_attended);
+        }
+
+        assert!(
+            !result.is_empty(),
+            "seharusnya ada minimal satu rekap presensi mata kuliah setelah login"
+        );
+        assert!(
+            result
+                .iter()
+                .all(|attendance| attendance.course_code == "KB43J435"),
+            "course_code harus sesuai dengan yang di-request"
         );
     }
 

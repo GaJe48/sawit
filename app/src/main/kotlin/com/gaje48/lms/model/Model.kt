@@ -51,11 +51,12 @@ data class Content(
 )
 
 data class ContentVmData(
+    val courseCode: String,
+    val courseName: String,
+    val meetingNumber: Byte,
     val type: String,
     val title: String,
     val contentUrl: String,
-    val meetingNumber: Byte,
-    val courseName: String,
 )
 
 data class AssignmentScreenData(

@@ -58,12 +58,13 @@ interface ContentDao {
 
     @Query(
         """
-        SELECT 
+        SELECT
+            cr.courseCode,
+            cr.courseName,
+            m.meetingNumber,
             c.type,
             c.title,
-            c.contentUrl,
-            m.meetingNumber, 
-            cr.courseName 
+            c.contentUrl
         FROM content c
         INNER JOIN meeting m ON c.meetingUrl = m.meetingUrl
         INNER JOIN course cr ON m.courseCode = cr.courseCode

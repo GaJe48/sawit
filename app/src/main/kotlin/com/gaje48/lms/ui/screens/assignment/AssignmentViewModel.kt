@@ -93,7 +93,7 @@ class AssignmentViewModel(
 
         viewModelScope.launch {
             lmsRepository
-                .uploadTask(uri, assignmentUrl) { fileName, progress ->
+                .uploadSubmission(uri, assignmentUrl) { fileName, progress ->
                     notificationHelper.showUploadProgress(notifId, fileName, progress)
                 }.onSuccess { fileName ->
                     notificationHelper.showUploadCompleting(notifId, fileName)

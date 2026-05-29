@@ -24,9 +24,10 @@ class StorageDataSource(
 
             val uri =
                 resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                    ?: error("Gagal membuat file download")
+                    ?: throw uniffi.lms_rust.LmsException.StorageException("Gagal membuat file download")
 
-            resolver.openFileDescriptor(uri, "w")?.detachFd() ?: error("Gagal membuka file download")
+            resolver.openFileDescriptor(uri, "w")?.detachFd()
+                ?: throw uniffi.lms_rust.LmsException.StorageException("Gagal membuka file download")
         }
 
     suspend fun openFileForUpload(uri: Uri) =

@@ -35,7 +35,7 @@ fun uniffi.lms_rust.Student.toEntity() =
     StudentEntity(
         npm,
         name,
-        studyProgram,
+        study,
         className,
         profilePictureUrl,
     )
