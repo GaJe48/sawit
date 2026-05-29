@@ -5,7 +5,16 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -102,7 +111,12 @@ fun LmsApp(mainViewModel: MainViewModel) {
         scope.launch { snackbarHostState.showSnackbar(msg) }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+    ) {
         NavDisplay(
             backStack = backStack,
             entryDecorators =
@@ -111,6 +125,28 @@ fun LmsApp(mainViewModel: MainViewModel) {
                     rememberViewModelStoreNavEntryDecorator(),
                 ),
             onBack = { backStack.removeAt(backStack.lastIndex) },
+            transitionSpec = {
+                (slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(durationMillis = 300))).togetherWith(
+                    slideOutHorizontally(
+                        targetOffsetX = { -it / 4 },
+                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                    ) + fadeOut(animationSpec = tween(durationMillis = 300))
+                )
+            },
+            popTransitionSpec = {
+                (slideInHorizontally(
+                    initialOffsetX = { -it / 4 },
+                    animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(durationMillis = 300))).togetherWith(
+                    slideOutHorizontally(
+                        targetOffsetX = { it },
+                        animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
+                    ) + fadeOut(animationSpec = tween(durationMillis = 300))
+                )
+            },
             entryProvider =
                 entryProvider {
                     entry<LoginNavKey> {
