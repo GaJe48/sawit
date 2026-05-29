@@ -6,7 +6,9 @@ edition = "2024"
 [dependencies]
 async-trait = { version = "0.1.89", default-features = false }
 futures = { version = "0.3.32", default-features = false }
-reqwest = { version = "0.13.4", default-features = false, features = ["cookies", "form", "multipart", "rustls", "stream"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["cookies", "form", "multipart", "rustls-no-provider", "stream"] }
+rustls = "0.23"
+webpki-roots = "1"
 scraper = { version = "0.27.0", default-features = false }
 tokio = { version = "1.52.3", default-features = false, features = ["rt-multi-thread", "macros"] }
 uniffi = { version = "0.31.1", default-features = false, features = ["cli", "tokio"] }
@@ -17,10 +19,6 @@ tokio-util = { version = "0.7.18", features = ["io"] }
 async-stream = "0.3.6"
 thiserror = "2.0.18"
 mime_guess = "2.0.5"
-
-[target.'cfg(target_os = "android")'.dependencies]
-jni = "0.22"
-rustls-platform-verifier = "0.7"
 
 [lib]
 crate-type = ["cdylib"]

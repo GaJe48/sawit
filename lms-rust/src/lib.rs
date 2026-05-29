@@ -1,20 +1,5 @@
 uniffi::setup_scaffolding!();
 
-#[cfg(target_os = "android")]
-#[allow(non_snake_case)]
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_gaje48_lms_LmsApplication_initRustTls(
-    mut unowned_env: jni::EnvUnowned,
-    _class: jni::objects::JClass,
-    context: jni::objects::JObject,
-) {
-    let _ = unowned_env.with_env(|env| -> Result<(), jni::errors::Error> {
-        rustls_platform_verifier::android::init_with_env(env, context)
-            .expect("Fatal: Gagal menginisialisasi rustls-platform-verifier dari Kotlin");
-        Ok(())
-    });
-}
-
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock},
@@ -139,7 +124,17 @@ trait UploadCallback: Send + Sync {
 impl InternetDataSource {
     #[uniffi::constructor]
     fn new() -> Self {
-        let web = Client::builder().cookie_store(true).build().unwrap();
+        let root_store =
+            rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let tls_config = rustls::ClientConfig::builder()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+
+        let web = Client::builder()
+            .use_preconfigured_tls(tls_config)
+            .cookie_store(true)
+            .build()
+            .unwrap();
 
         Self { web }
     }
