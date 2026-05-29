@@ -9,6 +9,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -163,6 +165,11 @@ fun LoginScreen(viewModel: LoginViewModel) {
     val isLoading = uiState.isLoading
     val errorMessage = uiState.errorMessage
 
+    var lastErrorMessage by remember { mutableStateOf("") }
+    if (errorMessage != null) {
+        lastErrorMessage = errorMessage
+    }
+
     var nim by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
@@ -300,65 +307,85 @@ fun LoginScreen(viewModel: LoginViewModel) {
                         var isPasswordFocused by remember { mutableStateOf(false) }
                         val passwordScale by animateFloatAsState(if (isPasswordFocused) 1.02f else 1f, label = "passwordScale")
 
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = { Text("Password Portal") },
-                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .scale(passwordScale)
-                                    .onFocusChanged { isPasswordFocused = it.isFocused },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = if (isPasswordFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            trailingIcon = {
-                                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
-                                    Icon(
-                                        imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            colors =
-                                OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedContainerColor = Color.Transparent,
-                                ),
-                        )
-
-                        AnimatedVisibility(
-                            visible = errorMessage != null,
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically(),
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(0.dp)
                         ) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(12.dp),
+                            OutlinedTextField(
+                                value = password,
+                                onValueChange = { password = it },
+                                label = { Text("Password Portal") },
+                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
-                                        .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
-                            ) {
-                                errorMessage?.let {
-                                    Text(
-                                        text = it,
-                                        color = MaterialTheme.colorScheme.error,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(12.dp),
-                                        fontWeight = FontWeight.Bold,
+                                        .scale(passwordScale)
+                                        .onFocusChanged { isPasswordFocused = it.isFocused },
+                                singleLine = true,
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = if (isPasswordFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
+                                },
+                                trailingIcon = {
+                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                colors =
+                                    OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedContainerColor = Color.Transparent,
+                                    ),
+                            )
+
+                            AnimatedVisibility(
+                                visible = errorMessage != null,
+                                enter = fadeIn(animationSpec = tween(300)) +
+                                        expandVertically(
+                                            expandFrom = Alignment.Top,
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                                stiffness = Spring.StiffnessMediumLow
+                                            )
+                                        ),
+                                exit = fadeOut(animationSpec = tween(250)) +
+                                       shrinkVertically(
+                                           shrinkTowards = Alignment.Top,
+                                           animationSpec = spring(
+                                               dampingRatio = Spring.DampingRatioNoBouncy,
+                                               stiffness = Spring.StiffnessMedium
+                                           )
+                                        ),
+                            ) {
+                                Column {
+                                    Spacer(modifier = Modifier.height(20.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+                                    ) {
+                                        Text(
+                                            text = lastErrorMessage,
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(12.dp),
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
                                 }
                             }
                         }
