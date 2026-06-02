@@ -3,19 +3,24 @@ package com.gaje48.lms.util
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import com.gaje48.lms.MainActivity
 import com.gaje48.lms.R
 
 class NotificationHelper(
     private val context: Context,
 ) {
     private companion object {
-        const val CHANNEL_ID = "lms"
-        const val CHANNEL_NAME = "ELemES"
+        const val CHANNEL_ID_HIGH = "lms_high"
+        const val CHANNEL_NAME_HIGH = "High"
         const val CHANNEL_ID_DEFAULT = "lms_default"
-        const val CHANNEL_NAME_DEFAULT = "ELemES Biasa"
-        const val GROUP_KEY = "lms_transfers"
-        const val SUMMARY_ID = 9999
+        const val CHANNEL_NAME_DEFAULT = "Default"
+        const val CHANNEL_ID_LOW = "lms_low"
+        const val CHANNEL_NAME_LOW = "Low"
+        const val GROUP_KEY = "lms"
+        const val SUMMARY_ID = 0
     }
 
     private val notificationManager =
@@ -25,8 +30,8 @@ class NotificationHelper(
                 createNotificationChannels(
                     listOf(
                         NotificationChannel(
-                            CHANNEL_ID,
-                            CHANNEL_NAME,
+                            CHANNEL_ID_HIGH,
+                            CHANNEL_NAME_HIGH,
                             NotificationManager.IMPORTANCE_HIGH,
                         ),
                         NotificationChannel(
@@ -34,12 +39,16 @@ class NotificationHelper(
                             CHANNEL_NAME_DEFAULT,
                             NotificationManager.IMPORTANCE_DEFAULT,
                         ),
-                    )
+                        NotificationChannel(
+                            CHANNEL_ID_LOW,
+                            CHANNEL_NAME_LOW,
+                            NotificationManager.IMPORTANCE_LOW,
+                        ),
+                    ),
                 )
             }
-    private val lastNotifUpdate = mutableMapOf<Int, Long>()
 
-    private fun notifBuilder() = Notification.Builder(context, CHANNEL_ID_DEFAULT)
+    private val lastNotifUpdate = mutableMapOf<Int, Long>()
 
     private fun updateGroupSummary() {
         Notification
@@ -47,20 +56,17 @@ class NotificationHelper(
             .setSmallIcon(R.drawable.notification_icon)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
-            .also {
-                notificationManager.notify(SUMMARY_ID, it.build())
-            }
+            .also { notificationManager.notify(SUMMARY_ID, it.build()) }
     }
 
     fun showDownloadStarted(notifId: Int) {
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Menyiapkan Download...")
             .setProgress(0, 0, true)
             .setOngoing(true)
-            .also {
-                notificationManager.notify(notifId, it.build())
-            }
+            .also { notificationManager.notify(notifId, it.build()) }
     }
 
     fun showDownloadProgress(
@@ -74,16 +80,15 @@ class NotificationHelper(
         if (now - (lastNotifUpdate[notifId] ?: 0) < 500) return
         lastNotifUpdate[notifId] = now
 
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Mengunduh File...")
             .setContentText("$fileName - $percent%")
             .setProgress(100, percent, false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .also {
-                notificationManager.notify(notifId, it.build())
-            }
+            .also { notificationManager.notify(notifId, it.build()) }
     }
 
     fun showDownloadSuccess(
@@ -92,7 +97,8 @@ class NotificationHelper(
     ) {
         lastNotifUpdate.remove(notifId)
 
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("Download Selesai!")
             .setContentText(fileName)
@@ -109,7 +115,8 @@ class NotificationHelper(
     ) {
         lastNotifUpdate.remove(notifId)
 
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("Download Gagal")
             .setContentText(message)
@@ -121,14 +128,13 @@ class NotificationHelper(
     }
 
     fun showUploadStarted(notifId: Int) {
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_sys_upload)
             .setContentTitle("Menyiapkan Upload...")
             .setProgress(0, 0, true)
             .setOngoing(true)
-            .also {
-                notificationManager.notify(notifId, it.build())
-            }
+            .also { notificationManager.notify(notifId, it.build()) }
     }
 
     fun showUploadProgress(
@@ -142,31 +148,29 @@ class NotificationHelper(
         if (now - (lastNotifUpdate[notifId] ?: 0) < 500) return
         lastNotifUpdate[notifId] = now
 
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_sys_upload)
             .setContentTitle("Mengunggah Tugas...")
             .setContentText("$fileName - $percent%")
             .setProgress(100, percent, false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .also {
-                notificationManager.notify(notifId, it.build())
-            }
+            .also { notificationManager.notify(notifId, it.build()) }
     }
 
     fun showUploadCompleting(
         notifId: Int,
         fileName: String,
     ) {
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_sys_upload)
             .setContentTitle("Menyelesaikan proses upload...")
             .setContentText(fileName)
             .setProgress(0, 0, true)
             .setOngoing(true)
-            .also {
-                notificationManager.notify(notifId, it.build())
-            }
+            .also { notificationManager.notify(notifId, it.build()) }
     }
 
     fun showUploadSuccess(
@@ -175,7 +179,8 @@ class NotificationHelper(
     ) {
         lastNotifUpdate.remove(notifId)
 
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_sys_upload_done)
             .setContentTitle("Upload Selesai!")
             .setContentText(fileName)
@@ -192,7 +197,8 @@ class NotificationHelper(
     ) {
         lastNotifUpdate.remove(notifId)
 
-        notifBuilder()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("Upload Gagal")
             .setContentText(message)
@@ -201,5 +207,80 @@ class NotificationHelper(
                 notificationManager.notify(notifId, it.build())
                 updateGroupSummary()
             }
+    }
+
+    fun createWatcherNotification(timeStr: String): Notification {
+        val intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+        val pendingIntent =
+            PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+        return Notification
+            .Builder(context, CHANNEL_ID_LOW)
+            .setSmallIcon(R.drawable.notification_icon)
+            .setContentTitle("LMS Monitor Aktif")
+            .setSubText(timeStr)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .build()
+    }
+
+    fun showNewAssignmentNotification(
+        courseName: String,
+        title: String,
+        deadline: String,
+    ) {
+        val intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+        val pendingIntent =
+            PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+        val notifId = System.currentTimeMillis().toInt()
+        Notification
+            .Builder(context, CHANNEL_ID_HIGH)
+            .setSmallIcon(R.drawable.notification_icon)
+            .setContentTitle("Ada Tugas Baru!")
+            .setContentText("[$courseName] $title (Deadline: $deadline)")
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .also { notificationManager.notify(notifId, it.build()) }
+    }
+
+    fun showWatcherErrorNotification(message: String) {
+        val intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+        val pendingIntent =
+            PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+        val notifId = System.currentTimeMillis().toInt()
+        Notification
+            .Builder(context, CHANNEL_ID_DEFAULT)
+            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setContentTitle("Gagal Memeriksa Tugas")
+            .setContentText(message)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .also { notificationManager.notify(notifId, it.build()) }
     }
 }

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import com.gaje48.lms.model.AssignmentNotificationDetail
 import com.gaje48.lms.model.AssignmentScreenData
 import com.gaje48.lms.model.AttendanceVmData
 import com.gaje48.lms.model.ContentVmData
@@ -114,6 +115,23 @@ interface AssignmentDao {
 
     @Upsert
     suspend fun saveAll(assignments: List<AssignmentEntity>)
+
+    @Query("SELECT assignmentUrl FROM assignment")
+    suspend fun getAllUrls(): List<String>
+
+    @Query(
+        """
+        SELECT 
+            c.courseName,
+            a.description,
+            a.deadline
+        FROM assignment a
+        JOIN meeting m ON a.meetingUrl = m.meetingUrl
+        JOIN course c ON m.courseCode = c.courseCode
+        WHERE a.assignmentUrl IN (:urls)
+    """,
+    )
+    suspend fun getAssignmentNotificationDetails(urls: List<String>): List<AssignmentNotificationDetail>
 }
 
 @Dao

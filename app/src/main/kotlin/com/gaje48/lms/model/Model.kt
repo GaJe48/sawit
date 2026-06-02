@@ -70,3 +70,9 @@ data class AssignmentScreenData(
     val isSubmitted: Boolean,
     val isOverdue: Boolean,
 )
+
+data class AssignmentNotificationDetail(
+    val courseName: String,
+    val description: String?,
+    val deadline: String,
+)
