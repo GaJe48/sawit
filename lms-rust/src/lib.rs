@@ -80,6 +80,7 @@ struct LmsEntity {
 #[derive(uniffi::Object)]
 struct InternetDataSource {
     web: Client,
+    base_url: String,
 }
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -136,7 +137,11 @@ impl InternetDataSource {
             .build()
             .unwrap();
 
-        Self { web }
+        let base_url = option_env!("LMS_BASE_URL")
+            .unwrap_or("https://lms.unindra.ac.id")
+            .to_string();
+
+        Self { web, base_url }
     }
 
     async fn cookie_renewed(&self, nim: String, pwd: String) -> Result<(), LmsError> {
@@ -145,7 +150,7 @@ impl InternetDataSource {
 
         let html = self
             .web
-            .get("https://lms.unindra.ac.id/login_new")
+            .get(format!("{}/login_new", self.base_url))
             .send()
             .await?
             .text()
@@ -181,7 +186,7 @@ impl InternetDataSource {
 
         let bytes = self
             .web
-            .get("https://lms.unindra.ac.id/kapca")
+            .get(format!("{}/kapca", self.base_url))
             .send()
             .await?
             .bytes()
@@ -199,7 +204,7 @@ impl InternetDataSource {
 
         let response = self
             .web
-            .post("https://lms.unindra.ac.id/login_new")
+            .post(format!("{}/login_new", self.base_url))
             .form(&form_data)
             .send()
             .await?
@@ -219,7 +224,7 @@ impl InternetDataSource {
     async fn fetch_all(&self) -> Result<LmsEntity, LmsError> {
         let dashboard_html_future = async {
             self.web
-                .get("https://lms.unindra.ac.id/member")
+                .get(format!("{}/member", self.base_url))
                 .send()
                 .await?
                 .text()
@@ -297,7 +302,7 @@ impl InternetDataSource {
 
         let attend_html = self
             .web
-            .get("https://lms.unindra.ac.id/presensi")
+            .get(format!("{}/presensi", self.base_url))
             .send()
             .await?
             .text()
@@ -311,7 +316,7 @@ impl InternetDataSource {
                 .find_map(|row| {
                     let mut cells = row.select(&CELL);
 
-                    let target_course = cells.next().and_then(|el| el.text().next())?.trim();
+                    let target_course = cells.next().and_then(|el| el.text().next())?.trim_ascii();
 
                     if target_course != course_code {
                         return None;
@@ -336,7 +341,7 @@ impl InternetDataSource {
 
         let html = self
             .web
-            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
+            .post(format!("{}/presensi/rekap_presensi_mhs", self.base_url))
             .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
             .send()
             .await?
@@ -459,7 +464,7 @@ impl InternetDataSource {
 
         let ext = content_type_header
             .and_then(|ct| {
-                let base_type = ct.split(';').next()?.trim();
+                let base_type = ct.split(';').next()?.trim_ascii();
                 mime_guess::get_mime_extensions_str(base_type)?.first()
             })
             .ok_or_else(|| LmsError::ParserError {
@@ -634,7 +639,8 @@ impl InternetDataSource {
             LazyLock::new(|| Selector::parse(".pull-right.text-bold").unwrap());
         static PROFILE: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".user-menu .dropdown-toggle").unwrap());
-        static IMG: LazyLock<Selector> = LazyLock::new(|| Selector::parse("img").unwrap());
+        static IMG: LazyLock<Selector> =
+            LazyLock::new(|| Selector::parse("img:nth-child(2)").unwrap());
 
         let raw_name = dashboard_html
             .select(&NAME)
@@ -643,7 +649,7 @@ impl InternetDataSource {
             .ok_or_else(|| LmsError::ParserError {
                 msg: "Student name element not found in dashboard".to_string(),
             })?
-            .trim();
+            .trim_ascii();
 
         let name = format_title_case(raw_name);
 
@@ -663,7 +669,7 @@ impl InternetDataSource {
             .ok_or_else(|| LmsError::ParserError {
                 msg: "Student study program element not found in dashboard".to_string(),
             })?
-            .trim()
+            .trim_ascii()
             .to_string();
 
         let class_name = dashboard_html
@@ -679,7 +685,7 @@ impl InternetDataSource {
             .and_then(|cleaned_html| {
                 Html::parse_fragment(&cleaned_html)
                     .select(&IMG)
-                    .nth(1)
+                    .next()
                     .and_then(|img| img.attr("src"))
                     .filter(|url| !url.contains(NO_PIC_Z))
                     .map(String::from)
@@ -769,7 +775,7 @@ impl InternetDataSource {
                         msg: "Course schedule text not found in course card".to_string(),
                     })?;
 
-                let mut parts = sec_span.split('|').map(|s| s.trim());
+                let mut parts = sec_span.split('|').map(|s| s.trim_ascii());
 
                 let room = parts
                     .nth(1)
@@ -877,7 +883,7 @@ impl InternetDataSource {
 
         let attend_html = self
             .web
-            .get("https://lms.unindra.ac.id/presensi")
+            .get(format!("{}/presensi", self.base_url))
             .send()
             .await?
             .text()
@@ -897,7 +903,7 @@ impl InternetDataSource {
                         .ok_or_else(|| LmsError::ParserError {
                             msg: "Failed to parse course code from attendance table row".to_string(),
                         })?
-                        .trim()
+                        .trim_ascii()
                         .to_string();
 
                     let (kode_jadwal_id, nim_id) = cells
@@ -918,7 +924,7 @@ impl InternetDataSource {
 
                     Ok(async move {
                         let html = client
-                            .post("https://lms.unindra.ac.id/presensi/rekap_presensi_mhs")
+                            .post(format!("{}/presensi/rekap_presensi_mhs", self.base_url))
                             .form(&[("kd_jdw", kode_jadwal_id), ("nim", nim_id)])
                             .send()
                             .await?
@@ -1004,7 +1010,7 @@ impl InternetDataSource {
                         .ok_or_else(|| LmsError::ParserError {
                             msg: "Failed to parse content title from row".to_string(),
                         })?
-                        .trim()
+                        .trim_ascii()
                         .to_string();
 
                     let client = &self.web;
