@@ -163,32 +163,28 @@ fun AttendanceScreenStateless(
 
     if (isProcessingAttendance) {
         AlertDialog(
-            onDismissRequest = {},
-            confirmButton = {},
+            onDismissRequest = { },
+            confirmButton = { },
             properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+            shape = RoundedCornerShape(24.dp),
             modifier =
                 Modifier
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
-                    .clip(RoundedCornerShape(24.dp)),
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.15f),
+                        RoundedCornerShape(24.dp),
+                    ),
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
             text = {
-                Row(
+                Box(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    LoadingGif(label = "Sedang memproses presensi Anda...")
-                }
+                    contentAlignment = Alignment.Center,
+                ) { LoadingGif(label = "Sedang memproses presensi Anda...") }
             },
         )
     }
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-    ) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(
             modifier =
                 Modifier
@@ -287,10 +283,7 @@ fun AttendanceScreenStateless(
             ) { paddingValues ->
                 if (attendanceScreenDatas.isEmpty()) {
                     LazyColumn(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .hazeSource(hazeState),
+                        modifier = Modifier.fillMaxSize().hazeSource(hazeState),
                         contentPadding =
                             PaddingValues(
                                 top = paddingValues.calculateTopPadding() + 16.dp,
@@ -317,199 +310,190 @@ fun AttendanceScreenStateless(
                             }
                         }
                     }
-                } else {
-                    val attendedCount = attendanceScreenDatas.count { it.isAttended }
-                    val totalCount = attendanceScreenDatas.size
-                    val percent = if (totalCount > 0) (attendedCount * 100 / totalCount) else 0
 
-                    LazyVerticalGrid(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .hazeSource(hazeState),
-                        columns = GridCells.Fixed(2),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding =
-                            PaddingValues(
-                                top = paddingValues.calculateTopPadding() + 16.dp,
-                                bottom = 32.dp,
-                                start = 20.dp,
-                                end = 20.dp,
-                            ),
-                    ) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Card(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth(),
-                                shape = RoundedCornerShape(24.dp),
-                                colors =
-                                    CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                                    ),
-                                border =
-                                    BorderStroke(
-                                        1.dp,
-                                        Brush.linearGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
-                                            ),
-                                        ),
-                                    ),
+                    return@Scaffold
+                }
+
+                val attendedCount = attendanceScreenDatas.count { it.isAttended }
+                val totalCount = attendanceScreenDatas.size
+                val percent = if (totalCount > 0) (attendedCount * 100 / totalCount) else 0
+
+                LazyVerticalGrid(
+                    modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding =
+                        PaddingValues(
+                            top = paddingValues.calculateTopPadding() + 16.dp,
+                            bottom = 32.dp,
+                            start = 20.dp,
+                            end = 20.dp,
+                        ),
+                ) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp),
+                            colors =
+                                CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                ),
+                            border =
+                                BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                ),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(20.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Tingkat Kehadiran",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Text(
+                                        text = "$attendedCount dari $totalCount Pertemuan Hadir",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                }
+
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.size(72.dp),
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Tingkat Kehadiran",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "$attendedCount dari $totalCount Pertemuan Hadir",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                                            fontWeight = FontWeight.Medium,
+                                    val animatedSweep = remember { Animatable(0f) }
+                                    LaunchedEffect(percent) {
+                                        animatedSweep.animateTo(
+                                            targetValue = percent * 3.6f,
+                                            animationSpec = tween(1000, easing = FastOutSlowInEasing),
                                         )
                                     }
 
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(72.dp),
-                                    ) {
-                                        val animatedSweep = remember { Animatable(0f) }
-                                        LaunchedEffect(percent) {
-                                            animatedSweep.animateTo(
-                                                targetValue = percent * 3.6f,
-                                                animationSpec = tween(1000, easing = FastOutSlowInEasing),
-                                            )
-                                        }
+                                    val primaryColor = MaterialTheme.colorScheme.primary
+                                    val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
 
-                                        val primaryColor = MaterialTheme.colorScheme.primary
-                                        val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-
-                                        Canvas(modifier = Modifier.fillMaxSize()) {
-                                            drawArc(
-                                                color = trackColor,
-                                                startAngle = -90f,
-                                                sweepAngle = 360f,
-                                                useCenter = false,
-                                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round),
-                                            )
-                                            drawArc(
-                                                color = primaryColor,
-                                                startAngle = -90f,
-                                                sweepAngle = animatedSweep.value,
-                                                useCenter = false,
-                                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round),
-                                            )
-                                        }
-
-                                        Text(
-                                            text = "$percent%",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Black,
-                                            color = MaterialTheme.colorScheme.primary,
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        drawArc(
+                                            color = trackColor,
+                                            startAngle = -90f,
+                                            sweepAngle = 360f,
+                                            useCenter = false,
+                                            style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round),
+                                        )
+                                        drawArc(
+                                            color = primaryColor,
+                                            startAngle = -90f,
+                                            sweepAngle = animatedSweep.value,
+                                            useCenter = false,
+                                            style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round),
                                         )
                                     }
+
+                                    Text(
+                                        text = "$percent%",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
                                 }
                             }
                         }
+                    }
 
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Card(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth(),
-                                shape = RoundedCornerShape(20.dp),
-                                colors =
-                                    CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                                    ),
-                                border =
-                                    BorderStroke(
-                                        1.dp,
-                                        Brush.linearGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f),
-                                            ),
-                                        ),
-                                    ),
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors =
+                                CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                ),
+                            border =
+                                BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                ),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(18.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(18.dp),
-                                    verticalAlignment = Alignment.Top,
-                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                                                RoundedCornerShape(12.dp),
+                                            ).padding(10.dp),
                                 ) {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .background(
-                                                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
-                                                    RoundedCornerShape(12.dp),
-                                                ).padding(10.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Warning,
-                                            contentDescription = "Pemberitahuan",
-                                            tint = MaterialTheme.colorScheme.tertiary,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                    }
-                                    Column {
-                                        Text(
-                                            text = "Informasi Penting Presensi",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Sistem mendeteksi kehadiran secara otomatis ketika Anda mengunduh materi. Namun, harap ikuti instruksi dosen jika presensi dilakukan lewat formulir eksternal atau tugas khusus.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            lineHeight = 20.sp,
-                                        )
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = "⚠️ PERINGATAN: Menekan tombol \"Isi Absen\" berulang kali secara cepat dapat membebani server dan mengakibatkan pemblokiran akun otomatis.",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Black,
-                                            color = MaterialTheme.colorScheme.error,
-                                            letterSpacing = 0.2.sp,
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Pemberitahuan",
+                                        tint = MaterialTheme.colorScheme.tertiary,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = "Informasi Penting Presensi",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Text(
+                                        text = "Sistem mendeteksi kehadiran secara otomatis ketika Anda mengunduh materi. Namun, harap ikuti instruksi dosen jika presensi dilakukan lewat formulir eksternal atau tugas khusus.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 20.sp,
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Text(
+                                        text = "⚠️ PERINGATAN: Menekan tombol \"Isi Absen\" berulang kali secara cepat dapat membebani server dan mengakibatkan pemblokiran akun otomatis.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.error,
+                                        letterSpacing = 0.2.sp,
+                                    )
                                 }
                             }
                         }
+                    }
 
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Text(
-                                text = "Riwayat Sesi Kuliah",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.padding(top = 8.dp),
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text(
+                            text = "Riwayat Sesi Kuliah",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(top = 8.dp),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
 
-                        itemsIndexed(attendanceScreenDatas) { index, attendanceScreenData ->
-                            AttendanceCard(
-                                attendanceIndex = index + 1,
-                                attendanceScreenData = attendanceScreenData,
-                                onAttendClick = {
-                                    onAttendClick(attendanceScreenData.contentUrls)
-                                },
-                            )
-                        }
+                    itemsIndexed(attendanceScreenDatas) { index, attendanceScreenData ->
+                        AttendanceCard(
+                            attendanceIndex = index + 1,
+                            attendanceScreenData = attendanceScreenData,
+                            onAttendClick = {
+                                onAttendClick(attendanceScreenData.contentUrls)
+                            },
+                        )
                     }
                 }
             }
@@ -527,9 +511,7 @@ fun AttendanceCard(
     val accentColor = if (isAttended) Color(0xFF10B981) else Color(0xFFEF4444)
     val containerColor =
         if (isAttended) {
-            MaterialTheme.colorScheme.primaryContainer.copy(
-                alpha = 0.2f,
-            )
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
         } else {
             MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
         }
@@ -541,16 +523,11 @@ fun AttendanceCard(
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .border(1.dp, accentColor.copy(alpha = 0.15f), RoundedCornerShape(20.dp)),
+        modifier = Modifier.fillMaxWidth(),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.15f)),
     ) {
         Column(
-            modifier =
-                Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -584,10 +561,7 @@ fun AttendanceCard(
 
             if (isAttended) {
                 Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(38.dp),
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(
@@ -621,10 +595,7 @@ fun AttendanceCard(
                 }
             } else {
                 Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(38.dp),
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(

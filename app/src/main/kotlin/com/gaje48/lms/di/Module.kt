@@ -9,7 +9,6 @@ import com.gaje48.lms.data.db.LmsDatabase
 import com.gaje48.lms.ui.MainViewModel
 import com.gaje48.lms.ui.screens.assignment.AssignmentViewModel
 import com.gaje48.lms.ui.screens.attendance.AttendanceViewModel
-import com.gaje48.lms.ui.screens.content.ContentViewModel
 import com.gaje48.lms.ui.screens.dashboard.DashboardViewModel
 import com.gaje48.lms.ui.screens.login.LoginViewModel
 import com.gaje48.lms.ui.screens.meeting.MeetingViewModel
@@ -45,7 +44,6 @@ val module =
         viewModelOf(::LoginViewModel)
         viewModelOf(::DashboardViewModel)
         viewModelOf(::MeetingViewModel)
-        viewModelOf(::ContentViewModel)
         viewModelOf(::AssignmentViewModel)
         viewModelOf(::AttendanceViewModel)
     }

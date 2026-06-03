@@ -1,5 +1,6 @@
 package com.gaje48.lms.ui.screens.meeting
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +8,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,6 +37,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Timer
@@ -51,21 +59,30 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.gaje48.lms.R
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.SyncIndicator
 import com.gaje48.lms.ui.screens.dashboard.InfoChip
@@ -84,9 +101,9 @@ import dev.chrisbanes.haze.rememberHazeState
 fun MeetingScreen(
     viewModel: MeetingViewModel,
     onBackClick: () -> Unit,
-    onMeetingClick: (String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var expandedMeetingUrl by remember { mutableStateOf<String?>(null) }
 
     val course = uiState.course ?: return
     val meetings = uiState.meetings
@@ -95,7 +112,6 @@ fun MeetingScreen(
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val state = rememberPullToRefreshState()
-    val clipboardManager = LocalClipboard.current
 
     val infiniteTransition = rememberInfiniteTransition(label = "meeting_blobs")
     val blobTime by infiniteTransition.animateFloat(
@@ -109,12 +125,7 @@ fun MeetingScreen(
         label = "blob_time",
     )
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(
             modifier =
                 Modifier
@@ -217,10 +228,7 @@ fun MeetingScreen(
                 },
             ) { paddingValues ->
                 LazyColumn(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .hazeSource(hazeState),
+                    modifier = Modifier.fillMaxSize().hazeSource(hazeState),
                     contentPadding =
                         PaddingValues(
                             top = paddingValues.calculateTopPadding() + 16.dp,
@@ -232,9 +240,7 @@ fun MeetingScreen(
                 ) {
                     item {
                         Card(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(24.dp),
                             colors =
                                 CardDefaults.cardColors(
@@ -243,12 +249,7 @@ fun MeetingScreen(
                             border =
                                 BorderStroke(
                                     1.dp,
-                                    Brush.linearGradient(
-                                        listOf(
-                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
-                                        ),
-                                    ),
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
                                 ),
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
@@ -270,10 +271,7 @@ fun MeetingScreen(
                                                 AsyncImage(
                                                     model = course.lecturerProfilePictureUrl,
                                                     contentDescription = "Foto Profil Dosen",
-                                                    modifier =
-                                                        Modifier
-                                                            .fillMaxSize()
-                                                            .clip(CircleShape),
+                                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
                                                     contentScale = ContentScale.Crop,
                                                 )
                                             } else {
@@ -305,9 +303,7 @@ fun MeetingScreen(
                                     if (!course.lecturerPhoneNumber.isNullOrEmpty()) {
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             IconButton(
-                                                onClick = {
-                                                    clipboardManager
-                                                },
+                                                onClick = { },
                                                 modifier =
                                                     Modifier
                                                         .background(
@@ -363,10 +359,7 @@ fun MeetingScreen(
                     if (meetings.isEmpty()) {
                         item {
                             Box(
-                                modifier =
-                                    Modifier
-                                        .fillParentMaxWidth()
-                                        .fillParentMaxHeight(0.7f),
+                                modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.7f),
                                 contentAlignment = Alignment.Center,
                             ) { EmptyGif(label = "Belum ada daftar pertemuan") }
                         }
@@ -383,10 +376,22 @@ fun MeetingScreen(
                         )
                     }
 
-                    items(meetings) { meeting ->
+                    items(
+                        items = meetings,
+                        key = { meeting -> meeting.meetingUrl },
+                    ) { meeting ->
+                        val isExpanded = expandedMeetingUrl == meeting.meetingUrl
                         MeetingCard(
                             index = meeting.meetingNumber,
-                            onMeetingClick = { onMeetingClick(meeting.meetingUrl) },
+                            meetingUrl = meeting.meetingUrl,
+                            isExpanded = isExpanded,
+                            viewModel = viewModel,
+                            onDownloadFile = { fileUrl ->
+                                viewModel.downloadFile(fileUrl, meeting.meetingUrl)
+                            },
+                            onMeetingClick = {
+                                expandedMeetingUrl = if (isExpanded) null else meeting.meetingUrl
+                            },
                         )
                     }
                 }
@@ -398,20 +403,42 @@ fun MeetingScreen(
 @Composable
 fun MeetingCard(
     index: Byte,
+    meetingUrl: String,
+    isExpanded: Boolean,
+    viewModel: MeetingViewModel,
+    onDownloadFile: (String) -> Unit,
     onMeetingClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val cardScale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "card_scale")
+    val rotationAngle by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        label = "rotation_angle",
+    )
+
+    val contents by viewModel
+        .observeContentVmDatas(meetingUrl)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+
+    val (files, links) =
+        remember(contents) {
+            val fileKeywords = listOf("pdf", "word", "powerpoint", "excel", "archive")
+            contents.partition { item ->
+                fileKeywords.any { keyword ->
+                    item.type.contains(keyword, ignoreCase = true)
+                }
+            }
+        }
+
+    val uriHandler = LocalUriHandler.current
 
     Card(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    scaleX = cardScale
-                    scaleY = cardScale
-                },
+            Modifier.fillMaxWidth().graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            },
         shape = RoundedCornerShape(24.dp),
         onClick = onMeetingClick,
         colors =
@@ -421,55 +448,222 @@ fun MeetingCard(
         border =
             BorderStroke(
                 1.dp,
-                Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.02f),
-                    ),
-                ),
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
             ),
         interactionSource = interactionSource,
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .padding(18.dp)
-                    .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    modifier = Modifier.size(48.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
+        Column {
+            Row(
+                modifier = Modifier.padding(18.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "%02d".format(index),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column {
                         Text(
-                            text = "%02d".format(index),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary,
+                            text = "Pertemuan Ke-$index",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = "Ketuk untuk melihat file materi & sesi",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "Pertemuan Ke-$index",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = "Ketuk untuk melihat file materi & sesi",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium,
-                    )
+
+                Icon(
+                    imageVector = Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.graphicsLayer { rotationZ = rotationAngle }.size(24.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+            ) {
+                Column(
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (contents.isEmpty()) {
+                        Text(
+                            text = "Tidak ada file materi yang tersedia",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+                        )
+                    }
+
+                    if (files.isNotEmpty()) {
+                        SectionHeader(
+                            icon = Icons.Default.Description,
+                            label = "File Pembelajaran",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        files.forEach { item ->
+                            key(item.contentUrl) {
+                                ContentCard(
+                                    title = item.title,
+                                    description = "Ketuk untuk mengunduh berkas",
+                                    icon = iconPainter(item.type),
+                                    accentColor = MaterialTheme.colorScheme.primary,
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                    onClick = { onDownloadFile(item.contentUrl) },
+                                )
+                            }
+                        }
+                    }
+
+                    if (links.isNotEmpty()) {
+                        SectionHeader(
+                            icon = Icons.Default.Link,
+                            label = "Tautan Pendukung",
+                            tint = MaterialTheme.colorScheme.secondary,
+                        )
+                        links.forEach { item ->
+                            key(item.contentUrl) {
+                                ContentCard(
+                                    title = item.title,
+                                    description = "Ketuk untuk membuka link di browser",
+                                    icon = iconPainter(item.type),
+                                    accentColor = MaterialTheme.colorScheme.secondary,
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                    onClick = { uriHandler.openUri(item.contentUrl) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+@Composable
+fun SectionHeader(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = tint,
+        )
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Black,
+            color = tint,
+            letterSpacing = 1.sp,
+        )
+    }
+}
+
+@Composable
+fun ContentCard(
+    title: String,
+    description: String,
+    icon: Painter,
+    accentColor: Color,
+    containerColor: Color,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "card_scale")
+
+    Card(
+        modifier =
+            Modifier.fillMaxWidth().graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            },
+        shape = RoundedCornerShape(24.dp),
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border =
+            BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            ),
+        interactionSource = interactionSource,
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = accentColor.copy(alpha = 0.12f),
+                modifier = Modifier.size(52.dp),
+                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.padding(12.dp),
+                    tint = accentColor,
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun iconPainter(type: String): Painter =
+    when {
+        type.contains("pdf") -> painterResource(id = R.drawable.pdf)
+        type.contains("powerpoint") -> painterResource(id = R.drawable.ppt)
+        type.contains("picture") -> painterResource(id = R.drawable.image)
+        type.contains("video") -> painterResource(id = R.drawable.video)
+        else -> painterResource(id = R.drawable.link)
+    }

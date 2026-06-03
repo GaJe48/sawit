@@ -42,8 +42,6 @@ import com.gaje48.lms.ui.screens.assignment.AssignmentScreen
 import com.gaje48.lms.ui.screens.assignment.AssignmentViewModel
 import com.gaje48.lms.ui.screens.attendance.AttendanceScreen
 import com.gaje48.lms.ui.screens.attendance.AttendanceViewModel
-import com.gaje48.lms.ui.screens.content.ContentScreen
-import com.gaje48.lms.ui.screens.content.ContentViewModel
 import com.gaje48.lms.ui.screens.dashboard.DashboardScreen
 import com.gaje48.lms.ui.screens.dashboard.DashboardViewModel
 import com.gaje48.lms.ui.screens.login.LoginScreen
@@ -64,11 +62,6 @@ object DashboardNavKey : NavKey
 @Serializable
 data class MeetingNavKey(
     val courseCode: String,
-) : NavKey
-
-@Serializable
-data class ContentNavKey(
-    val meetingUrl: String,
 ) : NavKey
 
 @Serializable
@@ -176,22 +169,13 @@ fun LmsApp(mainViewModel: MainViewModel) {
 
                     entry<MeetingNavKey> { destination ->
                         val viewModel = koinViewModel<MeetingViewModel> { parametersOf(destination.courseCode) }
-                        MeetingScreen(
-                            viewModel = viewModel,
-                            onBackClick = { backStack.removeAt(backStack.lastIndex) },
-                            onMeetingClick = { meetingUrl -> backStack.add(ContentNavKey(meetingUrl)) },
-                        )
-                    }
-
-                    entry<ContentNavKey> { destination ->
-                        val viewModel = koinViewModel<ContentViewModel> { parametersOf(destination.meetingUrl) }
                         val lifecycleOwner = LocalLifecycleOwner.current
                         LaunchedEffect(viewModel.snackbarEvent, lifecycleOwner) {
                             lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                                 viewModel.snackbarEvent.collect { showSnackbar(it) }
                             }
                         }
-                        ContentScreen(
+                        MeetingScreen(
                             viewModel = viewModel,
                             onBackClick = { backStack.removeAt(backStack.lastIndex) },
                         )

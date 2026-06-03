@@ -130,12 +130,7 @@ fun AssignmentScreen(
         label = "blob_time",
     )
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-    ) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Box(
             modifier =
                 Modifier
@@ -238,10 +233,7 @@ fun AssignmentScreen(
                 },
             ) { paddingValues ->
                 LazyColumn(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .hazeSource(hazeState),
+                    modifier = Modifier.fillMaxSize().hazeSource(hazeState),
                     contentPadding =
                         PaddingValues(
                             top = paddingValues.calculateTopPadding() + 16.dp,
@@ -269,36 +261,38 @@ fun AssignmentScreen(
                                 }
                             }
                         }
-                    } else {
-                        val mimeTypes =
-                            arrayOf(
-                                "application/pdf",
-                                "application/msword",
-                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                "application/vnd.ms-powerpoint",
-                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                                "application/vnd.ms-excel",
-                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                "application/zip",
-                                "application/x-7z-compressed",
-                                "application/x-rar-compressed",
-                            )
 
-                        items(assignmentScreenDatas) { assignmentScreenData ->
-                            AssignmentCard(
-                                assignmentScreenData = assignmentScreenData,
-                                onDownloadClick = {
-                                    assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadQuestion)
-                                },
-                                onViewClick = {
-                                    assignmentScreenData.submissionFileUrl?.let(uriHandler::openUri)
-                                },
-                                onSubmitClick = {
-                                    currentSubmitUrl = assignmentScreenData.assignmentUrl
-                                    launcher.launch(mimeTypes)
-                                },
-                            )
-                        }
+                        return@LazyColumn
+                    }
+
+                    val mimeTypes =
+                        arrayOf(
+                            "application/pdf",
+                            "application/msword",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/vnd.ms-powerpoint",
+                            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                            "application/vnd.ms-excel",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            "application/zip",
+                            "application/x-7z-compressed",
+                            "application/x-rar-compressed",
+                        )
+
+                    items(assignmentScreenDatas) { assignmentScreenData ->
+                        AssignmentCard(
+                            assignmentScreenData = assignmentScreenData,
+                            onDownloadClick = {
+                                assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadQuestion)
+                            },
+                            onViewClick = {
+                                assignmentScreenData.submissionFileUrl?.let(uriHandler::openUri)
+                            },
+                            onSubmitClick = {
+                                currentSubmitUrl = assignmentScreenData.assignmentUrl
+                                launcher.launch(mimeTypes)
+                            },
+                        )
                     }
                 }
             }
@@ -332,12 +326,10 @@ fun AssignmentCard(
 
     Card(
         modifier =
-            Modifier
-                .fillMaxWidth()
-                .graphicsLayer {
-                    scaleX = cardScale
-                    scaleY = cardScale
-                },
+            Modifier.fillMaxWidth().graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            },
         shape = RoundedCornerShape(24.dp),
         colors =
             CardDefaults.cardColors(
@@ -346,14 +338,8 @@ fun AssignmentCard(
         border =
             BorderStroke(
                 1.dp,
-                Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
-                    ),
-                ),
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
             ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -413,7 +399,9 @@ fun AssignmentCard(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -450,12 +438,10 @@ fun AssignmentCard(
                     FilledTonalButton(
                         onClick = onDownloadClick,
                         modifier =
-                            Modifier
-                                .weight(1f)
-                                .graphicsLayer {
-                                    scaleX = dlScale
-                                    scaleY = dlScale
-                                },
+                            Modifier.weight(1f).graphicsLayer {
+                                scaleX = dlScale
+                                scaleY = dlScale
+                            },
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(vertical = 10.dp),
                         interactionSource = dlInteraction,
@@ -470,12 +456,10 @@ fun AssignmentCard(
                     OutlinedButton(
                         onClick = onViewClick,
                         modifier =
-                            Modifier
-                                .weight(1f)
-                                .graphicsLayer {
-                                    scaleX = viewScale
-                                    scaleY = viewScale
-                                },
+                            Modifier.weight(1f).graphicsLayer {
+                                scaleX = viewScale
+                                scaleY = viewScale
+                            },
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(vertical = 10.dp),
                         interactionSource = viewInteraction,
@@ -488,20 +472,19 @@ fun AssignmentCard(
             }
 
             if (!assignmentScreenData.isOverdue) {
-                Spacer(modifier = Modifier.height(12.dp))
                 val submitInteraction = remember { MutableInteractionSource() }
                 val isSubmitPressed by submitInteraction.collectIsPressedAsState()
                 val submitScale by animateFloatAsState(if (isSubmitPressed) 0.95f else 1f, label = "submit_scale")
 
+                Spacer(modifier = Modifier.height(12.dp))
+
                 Button(
                     onClick = onSubmitClick,
                     modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                scaleX = submitScale
-                                scaleY = submitScale
-                            },
+                        Modifier.fillMaxWidth().graphicsLayer {
+                            scaleX = submitScale
+                            scaleY = submitScale
+                        },
                     shape = RoundedCornerShape(14.dp),
                     contentPadding = PaddingValues(vertical = 14.dp),
                     colors =
