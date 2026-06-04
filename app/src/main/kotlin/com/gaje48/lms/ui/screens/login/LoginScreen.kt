@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
@@ -54,11 +55,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -156,7 +160,12 @@ fun LoginScreen(viewModel: LoginViewModel) {
 
     var nim by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isPasswordVisible by remember { mutableStateOf(false) }
+
+    val passwordVisibilityInteractionSource = remember { MutableInteractionSource() }
+    val isPasswordVisible by passwordVisibilityInteractionSource.collectIsPressedAsState()
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val passwordFocusRequester = remember { FocusRequester() }
 
     val shakeOffset = remember { Animatable(0f) }
     LaunchedEffect(errorMessage) {
@@ -177,6 +186,11 @@ fun LoginScreen(viewModel: LoginViewModel) {
                         0f at 400
                     },
             )
+        }
+
+        if (errorMessage == "NIM atau Password salah") {
+            passwordFocusRequester.requestFocus()
+            keyboardController?.show()
         }
     }
 
@@ -285,10 +299,21 @@ fun LoginScreen(viewModel: LoginViewModel) {
                                 keyboardType = KeyboardType.Password,
                                 imeAction = ImeAction.Done,
                             ),
+                        keyboardActions =
+                            KeyboardActions(
+                                onDone = {
+                                    keyboardController?.hide()
+
+                                    if (!isLoading && nim.isNotEmpty() && password.isNotEmpty()) {
+                                        viewModel.manualLogin(nim, password)
+                                    }
+                                },
+                            ),
                         modifier =
                             Modifier
                                 .fillMaxWidth()
                                 .scale(passwordScale)
+                                .focusRequester(passwordFocusRequester)
                                 .onFocusChanged { isPasswordFocused = it.isFocused },
                         singleLine = true,
                         leadingIcon = {
@@ -299,7 +324,10 @@ fun LoginScreen(viewModel: LoginViewModel) {
                             )
                         },
                         trailingIcon = {
-                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                            IconButton(
+                                onClick = { },
+                                interactionSource = passwordVisibilityInteractionSource,
+                            ) {
                                 Icon(
                                     imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = null,
