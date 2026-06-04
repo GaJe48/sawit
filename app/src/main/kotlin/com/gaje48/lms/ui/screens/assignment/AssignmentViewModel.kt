@@ -5,10 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.model.AssignmentScreenData
-import com.gaje48.lms.model.UpdateAction
 import com.gaje48.lms.util.NotificationHelper
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -18,9 +16,6 @@ import kotlinx.coroutines.launch
 data class AssignmentUiState(
     val courseName: String? = null,
     val assignmentScreenDatas: List<AssignmentScreenData> = emptyList(),
-    val isLoading: Boolean = false,
-    val isRefreshing: Boolean = false,
-    val errorMessage: String? = null,
 )
 
 class AssignmentViewModel(
@@ -31,58 +26,20 @@ class AssignmentViewModel(
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
-    private val _isLoading = MutableStateFlow(false)
-    private val _isRefreshing = MutableStateFlow(false)
-    private val _errorMessage = MutableStateFlow<String?>(null)
-
     val uiState =
         combine(
             lmsRepository.courses,
             lmsRepository.observeAssignmentScreenDatas(courseCode),
-            _isLoading,
-            _isRefreshing,
-            _errorMessage,
-        ) { courses, assignmentScreenDatas, isLoading, isRefreshing, errorMessage ->
+        ) { courses, assignmentScreenDatas ->
             AssignmentUiState(
                 courseName = courses.find { it.courseCode == courseCode }?.courseName,
                 assignmentScreenDatas = assignmentScreenDatas,
-                isLoading = isLoading,
-                isRefreshing = isRefreshing,
-                errorMessage = errorMessage,
             )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = AssignmentUiState(),
         )
-
-    fun fetchAssignments(updateAction: UpdateAction = UpdateAction.LOADING) {
-        when (updateAction) {
-            UpdateAction.REFRESH -> {
-                _isRefreshing.value = true
-                _errorMessage.value = null
-            }
-
-            UpdateAction.LOADING -> {
-                _isLoading.value = true
-                _errorMessage.value = null
-            }
-        }
-
-        viewModelScope.launch {
-            lmsRepository.syncAll().onFailure {
-                val msg = it.message ?: "Gagal memperbarui data"
-                if (uiState.value.assignmentScreenDatas.isEmpty()) {
-                    _errorMessage.value = msg
-                } else {
-                    _snackbarEvent.trySend(msg)
-                }
-            }
-
-            _isRefreshing.value = false
-            _isLoading.value = false
-        }
-    }
 
     fun uploadSubmission(
         uri: Uri,

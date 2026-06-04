@@ -53,8 +53,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,11 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gaje48.lms.model.AssignmentScreenData
-import com.gaje48.lms.model.UpdateAction
 import com.gaje48.lms.ui.components.EmptyGif
-import com.gaje48.lms.ui.components.ErrorGif
-import com.gaje48.lms.ui.components.LoadingGif
-import com.gaje48.lms.ui.components.SyncIndicator
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -98,14 +92,10 @@ fun AssignmentScreen(
 
     val courseName = uiState.courseName ?: return
     val assignmentScreenDatas = uiState.assignmentScreenDatas
-    val isLoading = uiState.isLoading
-    val isRefreshing = uiState.isRefreshing
-    val errorMessage = uiState.errorMessage
 
     val uriHandler = LocalUriHandler.current
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val state = rememberPullToRefreshState()
 
     var currentSubmitUrl by remember { mutableStateOf("") }
     val launcher =
@@ -167,133 +157,109 @@ fun AssignmentScreen(
                     ),
         )
 
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            state = state,
-            onRefresh = { viewModel.fetchAssignments(UpdateAction.REFRESH) },
-            contentAlignment = Alignment.TopCenter,
-            indicator = {
-                SyncIndicator(
-                    state = state,
-                    isRefreshing = isRefreshing,
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    scrollBehavior = scrollBehavior,
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent,
+                        ),
+                    modifier =
+                        Modifier.hazeEffect(
+                            state = hazeState,
+                            style = HazeMaterials.ultraThin(),
+                        ),
+                    title = {
+                        Column {
+                            Text(
+                                text = "Tugas Kuliah",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                            )
+                            Text(
+                                text = courseName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onBackClick,
+                            modifier =
+                                Modifier
+                                    .padding(start = 12.dp, end = 4.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                        CircleShape,
+                                    ).border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                            )
+                        }
+                    },
                 )
             },
-        ) {
-            Scaffold(
-                modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-                containerColor = Color.Transparent,
-                topBar = {
-                    TopAppBar(
-                        scrollBehavior = scrollBehavior,
-                        colors =
-                            TopAppBarDefaults.topAppBarColors(
-                                containerColor = Color.Transparent,
-                                scrolledContainerColor = Color.Transparent,
-                            ),
-                        modifier =
-                            Modifier.hazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.ultraThin(),
-                            ),
-                        title = {
-                            Column {
-                                Text(
-                                    text = "Tugas Kuliah",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Black,
-                                )
-                                Text(
-                                    text = courseName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                contentPadding =
+                    PaddingValues(
+                        top = paddingValues.calculateTopPadding() + 16.dp,
+                        bottom = 32.dp,
+                        start = 20.dp,
+                        end = 20.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+            ) {
+                if (assignmentScreenDatas.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillParentMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) { EmptyGif(label = "Belum ada tugas kuliah") }
+                    }
+
+                    return@LazyColumn
+                }
+
+                val mimeTypes =
+                    arrayOf(
+                        "application/pdf",
+                        "application/msword",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/vnd.ms-powerpoint",
+                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        "application/vnd.ms-excel",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "application/zip",
+                        "application/x-7z-compressed",
+                        "application/x-rar-compressed",
+                    )
+
+                items(assignmentScreenDatas) { assignmentScreenData ->
+                    AssignmentCard(
+                        assignmentScreenData = assignmentScreenData,
+                        onDownloadClick = {
+                            assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadQuestion)
                         },
-                        navigationIcon = {
-                            IconButton(
-                                onClick = onBackClick,
-                                modifier =
-                                    Modifier
-                                        .padding(start = 12.dp, end = 4.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                            CircleShape,
-                                        ).border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                )
-                            }
+                        onViewClick = {
+                            assignmentScreenData.submissionFileUrl?.let(uriHandler::openUri)
+                        },
+                        onSubmitClick = {
+                            currentSubmitUrl = assignmentScreenData.assignmentUrl
+                            launcher.launch(mimeTypes)
                         },
                     )
-                },
-            ) { paddingValues ->
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().hazeSource(hazeState),
-                    contentPadding =
-                        PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 16.dp,
-                            bottom = 32.dp,
-                            start = 20.dp,
-                            end = 20.dp,
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                ) {
-                    if (assignmentScreenDatas.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillParentMaxSize(),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                when {
-                                    isLoading -> LoadingGif()
-                                    errorMessage != null ->
-                                        ErrorGif(
-                                            message = errorMessage,
-                                            onRetry = { viewModel.fetchAssignments() },
-                                        )
-
-                                    else -> EmptyGif(label = "Belum ada tugas kuliah")
-                                }
-                            }
-                        }
-
-                        return@LazyColumn
-                    }
-
-                    val mimeTypes =
-                        arrayOf(
-                            "application/pdf",
-                            "application/msword",
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            "application/vnd.ms-powerpoint",
-                            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                            "application/vnd.ms-excel",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            "application/zip",
-                            "application/x-7z-compressed",
-                            "application/x-rar-compressed",
-                        )
-
-                    items(assignmentScreenDatas) { assignmentScreenData ->
-                        AssignmentCard(
-                            assignmentScreenData = assignmentScreenData,
-                            onDownloadClick = {
-                                assignmentScreenData.assignmentFileUrl?.let(viewModel::downloadQuestion)
-                            },
-                            onViewClick = {
-                                assignmentScreenData.submissionFileUrl?.let(uriHandler::openUri)
-                            },
-                            onSubmitClick = {
-                                currentSubmitUrl = assignmentScreenData.assignmentUrl
-                                launcher.launch(mimeTypes)
-                            },
-                        )
-                    }
                 }
             }
         }

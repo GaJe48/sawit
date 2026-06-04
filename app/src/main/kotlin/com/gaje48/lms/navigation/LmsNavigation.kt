@@ -1,10 +1,5 @@
 package com.gaje48.lms.navigation
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -18,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,8 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,6 +33,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.gaje48.lms.ui.MainViewModel
+import com.gaje48.lms.ui.components.SyncIndicator
 import com.gaje48.lms.ui.screens.assignment.AssignmentScreen
 import com.gaje48.lms.ui.screens.assignment.AssignmentViewModel
 import com.gaje48.lms.ui.screens.attendance.AttendanceScreen
@@ -76,23 +72,16 @@ data class AttendanceNavKey(
 
 @Composable
 fun LmsApp(mainViewModel: MainViewModel) {
-    val backStack = rememberNavBackStack(LoginNavKey)
     val isLoggedIn by mainViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = false)
+    val isRefreshing by mainViewModel.isRefreshing.collectAsStateWithLifecycle()
+
+    val backStack = rememberNavBackStack(LoginNavKey)
+    val pullToRefreshState = rememberPullToRefreshState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
 
-    val permissionLauncher =
-        rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.RequestPermission(),
-        ) {}
-
-    LaunchedEffect(null) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
+    val showSnackbar: (String) -> Unit = { msg ->
+        scope.launch { snackbarHostState.showSnackbar(msg) }
     }
 
     LaunchedEffect(isLoggedIn) {
@@ -100,16 +89,14 @@ fun LmsApp(mainViewModel: MainViewModel) {
         backStack.add(0, if (isLoggedIn) DashboardNavKey else LoginNavKey)
     }
 
-    val showSnackbar: (String) -> Unit = { msg ->
-        scope.launch { snackbarHostState.showSnackbar(msg) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(mainViewModel.snackbarEvent, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.snackbarEvent.collect { showSnackbar(it) }
+        }
     }
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-    ) {
+    val content = @Composable {
         NavDisplay(
             backStack = backStack,
             entryDecorators =
@@ -159,6 +146,7 @@ fun LmsApp(mainViewModel: MainViewModel) {
                                 viewModel.snackbarEvent.collect { showSnackbar(it) }
                             }
                         }
+
                         DashboardScreen(
                             viewModel = viewModel,
                             onCourseClick = { courseCode -> backStack.add(MeetingNavKey(courseCode)) },
@@ -175,6 +163,7 @@ fun LmsApp(mainViewModel: MainViewModel) {
                                 viewModel.snackbarEvent.collect { showSnackbar(it) }
                             }
                         }
+
                         MeetingScreen(
                             viewModel = viewModel,
                             onBackClick = { backStack.removeAt(backStack.lastIndex) },
@@ -189,6 +178,7 @@ fun LmsApp(mainViewModel: MainViewModel) {
                                 viewModel.snackbarEvent.collect { showSnackbar(it) }
                             }
                         }
+
                         AssignmentScreen(
                             viewModel = viewModel,
                             onBackClick = { backStack.removeAt(backStack.lastIndex) },
@@ -203,6 +193,7 @@ fun LmsApp(mainViewModel: MainViewModel) {
                                 viewModel.snackbarEvent.collect { showSnackbar(it) }
                             }
                         }
+
                         AttendanceScreen(
                             viewModel = viewModel,
                             onBackClick = { backStack.removeAt(backStack.lastIndex) },
@@ -210,6 +201,29 @@ fun LmsApp(mainViewModel: MainViewModel) {
                     }
                 },
         )
+    }
+
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        if (!isLoggedIn) {
+            content()
+
+            return@Box
+        }
+
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            state = pullToRefreshState,
+            onRefresh = { mainViewModel.refresh() },
+            contentAlignment = Alignment.TopCenter,
+            indicator = {
+                SyncIndicator(
+                    state = pullToRefreshState,
+                    isRefreshing = isRefreshing,
+                )
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) { content() }
+
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),

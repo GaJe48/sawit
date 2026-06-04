@@ -7,7 +7,6 @@ import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Meeting
 import com.gaje48.lms.util.NotificationHelper
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -18,8 +17,6 @@ import kotlinx.coroutines.launch
 data class MeetingUiState(
     val course: Course? = null,
     val meetings: List<Meeting> = emptyList(),
-    val isRefreshing: Boolean = false,
-    val errorMessage: String? = null,
 )
 
 class MeetingViewModel(
@@ -27,9 +24,6 @@ class MeetingViewModel(
     private val lmsRepository: LmsRepository,
     private val notificationHelper: NotificationHelper,
 ) : ViewModel() {
-    private val _isRefreshing = MutableStateFlow(false)
-    private val _errorMessage = MutableStateFlow<String?>(null)
-
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
@@ -37,14 +31,10 @@ class MeetingViewModel(
         combine(
             lmsRepository.courses,
             lmsRepository.observeMeetings(courseCode),
-            _isRefreshing,
-            _errorMessage,
-        ) { courses, meetings, isRefreshing, errorMessage ->
+        ) { courses, meetings ->
             MeetingUiState(
                 course = courses.find { it.courseCode == courseCode },
                 meetings = meetings,
-                isRefreshing = isRefreshing,
-                errorMessage = errorMessage,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -53,19 +43,6 @@ class MeetingViewModel(
         )
 
     fun observeContentVmDatas(meetingUrl: String) = lmsRepository.observeContentVmDatas(meetingUrl)
-
-    fun refreshDashboard() {
-        viewModelScope.launch {
-            _isRefreshing.value = true
-            _errorMessage.value = null
-
-            lmsRepository.syncAll().onFailure {
-                val msg = it.message ?: "Gagal memperbarui data"
-                _errorMessage.value = msg
-            }
-            _isRefreshing.value = false
-        }
-    }
 
     fun downloadFile(
         fileUrl: String,

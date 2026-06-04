@@ -53,8 +53,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,7 +78,6 @@ import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Student
 import com.gaje48.lms.ui.components.EmptyGif
-import com.gaje48.lms.ui.components.SyncIndicator
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -126,8 +123,6 @@ fun PreviewDashboardScreen() {
         student = dummyProfile,
         courses = dummyList,
         allAttendances = dummyAttend,
-        isRefreshing = false,
-        onRefresh = {},
         onCourseClick = {},
         onAttendanceClick = {},
         onAssignmentClick = {},
@@ -148,8 +143,6 @@ fun DashboardScreen(
         student = uiState.student ?: return,
         courses = uiState.courses,
         allAttendances = uiState.allPresences,
-        isRefreshing = uiState.isRefreshing,
-        onRefresh = { viewModel.refreshDashboard() },
         onCourseClick = onCourseClick,
         onAttendanceClick = onAttendanceClick,
         onAssignmentClick = onAssignmentClick,
@@ -167,8 +160,6 @@ fun DashboardScreenStateless(
     student: Student,
     courses: List<Course>,
     allAttendances: List<AttendancesByCourse>,
-    isRefreshing: Boolean,
-    onRefresh: () -> Unit,
     onCourseClick: (String) -> Unit,
     onAttendanceClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
@@ -176,7 +167,6 @@ fun DashboardScreenStateless(
 ) {
     val hazeState = rememberHazeState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val state = rememberPullToRefreshState()
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "dash_blobs")
@@ -288,116 +278,103 @@ fun DashboardScreenStateless(
                     ),
         )
 
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            state = state,
-            onRefresh = onRefresh,
-            contentAlignment = Alignment.TopCenter,
-            indicator = {
-                SyncIndicator(
-                    state = state,
-                    isRefreshing = isRefreshing,
+        Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    scrollBehavior = scrollBehavior,
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = Color.Transparent,
+                        ),
+                    modifier =
+                        Modifier.hazeEffect(
+                            state = hazeState,
+                            style = HazeMaterials.ultraThin(),
+                        ),
+                    title = {
+                        Column {
+                            Text(
+                                text = "Halo, ${student.studentName.substringBefore(' ')}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                            )
+                            Text(
+                                text = "Selamat datang kembali",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = { showLogoutDialog = true },
+                            modifier =
+                                Modifier
+                                    .padding(end = 12.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                        CircleShape,
+                                    ).border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Logout",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    },
                 )
             },
-        ) {
-            Scaffold(
-                modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-                containerColor = Color.Transparent,
-                topBar = {
-                    TopAppBar(
-                        scrollBehavior = scrollBehavior,
-                        colors =
-                            TopAppBarDefaults.topAppBarColors(
-                                containerColor = Color.Transparent,
-                                scrolledContainerColor = Color.Transparent,
-                            ),
-                        modifier =
-                            Modifier.hazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.ultraThin(),
-                            ),
-                        title = {
-                            Column {
-                                Text(
-                                    text = "Halo, ${student.studentName.substringBefore(' ')}",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Black,
-                                )
-                                Text(
-                                    text = "Selamat datang kembali",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                            }
-                        },
-                        actions = {
-                            IconButton(
-                                onClick = { showLogoutDialog = true },
-                                modifier =
-                                    Modifier
-                                        .padding(end = 12.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                            CircleShape,
-                                        ).border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ExitToApp,
-                                    contentDescription = "Logout",
-                                    tint = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        },
-                    )
-                },
-            ) { paddingValues ->
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().hazeSource(hazeState),
-                    contentPadding =
-                        PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 16.dp,
-                            bottom = 32.dp,
-                            start = 20.dp,
-                            end = 20.dp,
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    item { StudentProfileCard(student = student) }
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                contentPadding =
+                    PaddingValues(
+                        top = paddingValues.calculateTopPadding() + 16.dp,
+                        bottom = 32.dp,
+                        start = 20.dp,
+                        end = 20.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                item { StudentProfileCard(student = student) }
 
-                    if (courses.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f),
-                                contentAlignment = Alignment.Center,
-                            ) { EmptyGif(label = "Belum ada jadwal mata kuliah") }
-                        }
-
-                        return@LazyColumn
-                    }
-
+                if (courses.isEmpty()) {
                     item {
-                        Text(
-                            text = "Jadwal Kuliah Anda",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
+                        Box(
+                            modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f),
+                            contentAlignment = Alignment.Center,
+                        ) { EmptyGif(label = "Belum ada jadwal mata kuliah") }
                     }
 
-                    items(
-                        items = courses.zip(allAttendances),
-                        key = { (course, _) -> course.courseCode },
-                    ) { (course, attendancesByCourse) ->
-                        CourseCard(
-                            course = course,
-                            attendancesByCourse = attendancesByCourse,
-                            onCourseClick = onCourseClick,
-                            onAttendanceClick = onAttendanceClick,
-                            onAssignmentClick = onAssignmentClick,
-                        )
-                    }
+                    return@LazyColumn
+                }
+
+                item {
+                    Text(
+                        text = "Jadwal Kuliah Anda",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+
+                items(
+                    items = courses.zip(allAttendances),
+                    key = { (course, _) -> course.courseCode },
+                ) { (course, attendancesByCourse) ->
+                    CourseCard(
+                        course = course,
+                        attendancesByCourse = attendancesByCourse,
+                        onCourseClick = onCourseClick,
+                        onAttendanceClick = onAttendanceClick,
+                        onAssignmentClick = onAssignmentClick,
+                    )
                 }
             }
         }
