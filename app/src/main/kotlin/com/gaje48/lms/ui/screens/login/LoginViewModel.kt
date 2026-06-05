@@ -4,13 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.AuthRepository
 import com.gaje48.lms.data.LmsRepository
+import com.gaje48.lms.model.AuthStatus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class LoginUiState(
-    val isLoading: Boolean = false,
+    val status: AuthStatus = AuthStatus.IDLE,
     val errorMessage: String? = null,
 )
 
@@ -25,7 +27,7 @@ class LoginViewModel(
         _uiState.update {
             it.copy(
                 errorMessage = message,
-                isLoading = false,
+                status = AuthStatus.IDLE,
             )
         }
     }
@@ -34,7 +36,7 @@ class LoginViewModel(
         nim: String,
         pwd: String,
     ) {
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { it.copy(status = AuthStatus.LOADING, errorMessage = null) }
 
         viewModelScope.launch {
             val authResult = authRepository.login(nim, pwd)
@@ -54,6 +56,9 @@ class LoginViewModel(
                 setError(it.message ?: "Gagal memuat data akademik")
                 return@launch
             }
+
+            _uiState.update { it.copy(status = AuthStatus.SUCCESS) }
+            delay(500)
 
             authRepository.saveCredentials(nim, pwd)
         }

@@ -1,8 +1,9 @@
 package com.gaje48.lms.model
 
-enum class UpdateAction {
+enum class AuthStatus {
+    IDLE,
     LOADING,
-    REFRESH,
+    SUCCESS,
 }
 
 data class Student(
