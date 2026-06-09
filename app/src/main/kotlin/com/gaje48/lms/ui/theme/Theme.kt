@@ -65,17 +65,17 @@ fun LMSUnindraTheme(
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    val context = LocalContext.current
+    val view = LocalView.current
+
     val colorScheme =
         when {
             dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-                val context = LocalContext.current
                 if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             }
             darkTheme -> DarkColorScheme
             else -> LightColorScheme
         }
-    val view = LocalView.current
-    val context = LocalContext.current
 
     if (!view.isInEditMode) {
         SideEffect {
@@ -105,7 +105,6 @@ fun LMSUnindraTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
         content = content,
     )
 }

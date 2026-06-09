@@ -63,18 +63,18 @@ class AttendanceViewModel(
         _isProcessingAttendance.value = true
 
         viewModelScope.launch {
-            try {
-                lmsRepository.executeAttendances(urls).onFailure { exception ->
-                    _snackbarEvent.trySend(exception.message ?: "Gagal melakukan absensi")
-                    return@launch
-                }
+            lmsRepository.executeAttendances(urls).onFailure { exception ->
+                _snackbarEvent.trySend(exception.message ?: "Gagal melakukan absensi")
 
-                lmsRepository.syncAttendancesByCourse(courseCode).onFailure { exception ->
-                    _snackbarEvent.trySend(exception.message ?: "Gagal memperbarui data")
-                }
-            } finally {
                 _isProcessingAttendance.value = false
+                return@launch
             }
+
+            lmsRepository.syncAttendancesByCourse(courseCode).onFailure { exception ->
+                _snackbarEvent.trySend(exception.message ?: "Gagal memperbarui data")
+            }
+
+            _isProcessingAttendance.value = false
         }
     }
 }

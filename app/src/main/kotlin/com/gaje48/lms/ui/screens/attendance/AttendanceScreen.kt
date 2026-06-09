@@ -2,20 +2,12 @@ package com.gaje48.lms.ui.screens.attendance
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,14 +31,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -54,15 +48,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -72,12 +64,16 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gaje48.lms.model.AttendanceScreenData
 import com.gaje48.lms.ui.components.EmptyGif
+import com.gaje48.lms.ui.components.FloatingBlobsBackground
 import com.gaje48.lms.ui.components.LoadingGif
+import com.gaje48.lms.ui.components.rememberPressedState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Preview
 @Composable
@@ -91,8 +87,8 @@ fun PreviewAttendanceScreen() {
                 AttendanceScreenData(false, emptyList()),
             ),
         isProcessingAttendance = false,
-        onAttendClick = {},
-        onBackClick = {},
+        onAttendClick = { },
+        onBackClick = { },
     )
 }
 
@@ -125,107 +121,72 @@ fun AttendanceScreenStateless(
     onAttendClick: (List<String>) -> Unit,
     onBackClick: () -> Unit,
 ) {
-    val hazeState = rememberHazeState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    FloatingBlobsBackground {
+        val scope = rememberCoroutineScope()
 
-    val infiniteTransition = rememberInfiniteTransition(label = "attendance_blobs")
-    val blobTime by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * Math.PI.toFloat(),
-        animationSpec =
-            infiniteRepeatable(
-                animation = tween(30000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-        label = "blob_time",
-    )
+        val hazeState = rememberHazeState()
 
-    if (isProcessingAttendance) {
-        AlertDialog(
-            onDismissRequest = { },
-            confirmButton = { },
-            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
-            shape = RoundedCornerShape(24.dp),
-            modifier =
-                Modifier
-                    .border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.15f),
-                        RoundedCornerShape(24.dp),
-                    ),
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            text = {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) { LoadingGif(label = "Sedang memproses presensi Anda...") }
-            },
-        )
-    }
-
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(
-            modifier =
-                Modifier
-                    .size(450.dp)
-                    .graphicsLayer {
-                        translationX = (20f * kotlin.math.sin(blobTime)).dp.toPx() - 100.dp.toPx()
-                        translationY = (20f * kotlin.math.cos(blobTime)).dp.toPx() - 100.dp.toPx()
-                    }.background(
-                        Brush.radialGradient(
-                            colors =
-                                listOf(
-                                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f),
-                                    Color.Transparent,
-                                ),
+        if (isProcessingAttendance) {
+            AlertDialog(
+                onDismissRequest = { },
+                confirmButton = { },
+                properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+                shape = RoundedCornerShape(24.dp),
+                modifier =
+                    Modifier
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(0.2f),
+                            shape = RoundedCornerShape(24.dp),
                         ),
-                    ),
-        )
-        Box(
-            modifier =
-                Modifier
-                    .size(350.dp)
-                    .align(Alignment.BottomStart)
-                    .graphicsLayer {
-                        translationX = (30f * kotlin.math.cos(blobTime + 1f)).dp.toPx() - 100.dp.toPx()
-                        translationY = (30f * kotlin.math.sin(blobTime + 1f)).dp.toPx() + 100.dp.toPx()
-                    }.background(
-                        Brush.radialGradient(
-                            colors =
-                                listOf(
-                                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f),
-                                    Color.Transparent,
-                                ),
-                        ),
-                    ),
-        )
+                containerColor = MaterialTheme.colorScheme.surface.copy(0.8f),
+                text = {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        LoadingGif(label = "Sedang memproses presensi Anda...")
+                    }
+                },
+            )
+        }
 
         Scaffold(
-            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-            containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    scrollBehavior = scrollBehavior,
-                    colors =
-                        TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent,
-                        ),
-                    modifier =
-                        Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.ultraThin(),
-                        ),
+                    colors = TopAppBarDefaults.topAppBarColors(Color.Transparent),
+                    modifier = Modifier.hazeEffect(hazeState, HazeMaterials.ultraThin()),
                     navigationIcon = {
-                        IconButton(
-                            onClick = onBackClick,
+                        val backInteraction = remember { MutableInteractionSource() }
+                        val isBackPressed by rememberPressedState(backInteraction)
+                        val backScale by animateFloatAsState(
+                            targetValue = if (isBackPressed) 0.95f else 1f,
+                            label = "back_scale",
+                        )
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    delay(150)
+                                    onBackClick()
+                                }
+                            },
+                            interactionSource = backInteraction,
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                            shape = CircleShape,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.2f)),
+                            contentPadding = PaddingValues(),
                             modifier =
-                                Modifier
-                                    .padding(start = 12.dp, end = 4.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), CircleShape)
-                                    .border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
+                                Modifier.padding(start = 12.dp, end = 4.dp).size(50.dp).graphicsLayer {
+                                    scaleX = backScale
+                                    scaleY = backScale
+                                },
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                         }
                     },
                     title = {
@@ -247,16 +208,19 @@ fun AttendanceScreenStateless(
                     },
                 )
             },
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ) { paddingValues ->
+
             if (attendanceScreenDatas.isEmpty()) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                    modifier = Modifier.hazeSource(hazeState),
                     contentPadding =
                         PaddingValues(
-                            top = paddingValues.calculateTopPadding() + 16.dp,
-                            bottom = 24.dp,
                             start = 20.dp,
+                            top = paddingValues.calculateTopPadding() + 16.dp,
                             end = 20.dp,
+                            bottom = 20.dp,
                         ),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
@@ -264,71 +228,61 @@ fun AttendanceScreenStateless(
                         Box(
                             modifier = Modifier.fillParentMaxSize(),
                             contentAlignment = Alignment.Center,
-                        ) { EmptyGif(label = "Belum ada data absen") }
+                        ) {
+                            EmptyGif(label = "Belum ada data absen")
+                        }
                     }
                 }
 
                 return@Scaffold
             }
 
-            val attendedCount = attendanceScreenDatas.count { it.isAttended }
-            val totalCount = attendanceScreenDatas.size
-            val percent = if (totalCount > 0) (attendedCount * 100 / totalCount) else 0
-
             LazyVerticalGrid(
-                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                modifier = Modifier.hazeSource(hazeState),
                 columns = GridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding =
                     PaddingValues(
-                        top = paddingValues.calculateTopPadding() + 16.dp,
-                        bottom = 32.dp,
                         start = 20.dp,
+                        top = paddingValues.calculateTopPadding() + 16.dp,
                         end = 20.dp,
+                        bottom = 20.dp,
                     ),
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp),
-                        colors =
-                            CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                            ),
-                        border =
-                            BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                            ),
+                        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.primaryContainer.copy(0.4f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
                     ) {
                         Row(
                             modifier = Modifier.padding(20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            val attendedCount = attendanceScreenDatas.count { it.isAttended }
+                            val totalCount = attendanceScreenDatas.size
+                            val percent = if (totalCount > 0) (attendedCount * 100 / totalCount) else 0
+
+                            Column(Modifier.weight(1f)) {
                                 Text(
                                     text = "Tingkat Kehadiran",
-                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    style = MaterialTheme.typography.titleMedium,
                                 )
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
                                 Text(
                                     text = "$attendedCount dari $totalCount Pertemuan Hadir",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium,
+                                    style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
 
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(72.dp),
-                            ) {
+                            Box(Modifier.size(72.dp), Alignment.Center) {
                                 val animatedSweep = remember { Animatable(0f) }
                                 LaunchedEffect(percent) {
                                     animatedSweep.animateTo(
@@ -338,9 +292,9 @@ fun AttendanceScreenStateless(
                                 }
 
                                 val primaryColor = MaterialTheme.colorScheme.primary
-                                val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                val trackColor = MaterialTheme.colorScheme.primary.copy(0.2f)
 
-                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                Canvas(Modifier.fillMaxSize()) {
                                     drawArc(
                                         color = trackColor,
                                         startAngle = -90f,
@@ -359,9 +313,9 @@ fun AttendanceScreenStateless(
 
                                 Text(
                                     text = "$percent%",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Black,
                                     color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Black,
+                                    style = MaterialTheme.typography.titleMedium,
                                 )
                             }
                         }
@@ -370,63 +324,51 @@ fun AttendanceScreenStateless(
 
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors =
-                            CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                            ),
-                        border =
-                            BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                            ),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surface.copy(0.4f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
                     ) {
                         Row(
                             modifier = Modifier.padding(18.dp),
                             verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .background(
-                                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
-                                            RoundedCornerShape(12.dp),
-                                        ).padding(10.dp),
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.tertiary.copy(0.2f),
+                                modifier = Modifier.size(44.dp),
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Warning,
                                     contentDescription = "Pemberitahuan",
                                     tint = MaterialTheme.colorScheme.tertiary,
-                                    modifier = Modifier.size(24.dp),
+                                    modifier = Modifier.padding(10.dp),
                                 )
                             }
                             Column {
                                 Text(
                                     text = "Informasi Penting Presensi",
-                                    style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.titleMedium,
                                 )
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
                                 Text(
-                                    text = "Sistem mendeteksi kehadiran secara otomatis ketika Anda mengunduh materi. Namun, harap ikuti instruksi dosen jika presensi dilakukan lewat formulir eksternal atau tugas khusus.",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "Sistem endeteksi kehadiran secara otomatis ketika Anda mengunduh materi. Namun, harap ikuti instruksi dosen jika presensi dilakukan lewat formulir eksternal atau tugas khusus.",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     lineHeight = 20.sp,
+                                    style = MaterialTheme.typography.bodyMedium,
                                 )
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Text(
                                     text = "⚠️ PERINGATAN: Menekan tombol \"Isi Absen\" berulang kali secara cepat dapat membebani server dan mengakibatkan pemblokiran akun otomatis.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Black,
                                     color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Black,
                                     letterSpacing = 0.2.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                 )
                             }
                         }
@@ -436,20 +378,16 @@ fun AttendanceScreenStateless(
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = "Riwayat Sesi Kuliah",
-                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
-                        modifier = Modifier.padding(top = 8.dp),
-                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleLarge,
                     )
                 }
 
-                itemsIndexed(attendanceScreenDatas) { index, attendanceScreenData ->
+                itemsIndexed(items = attendanceScreenDatas, key = { index, _ -> index }) { index, attendanceScreenData ->
                     AttendanceCard(
                         attendanceIndex = index + 1,
                         attendanceScreenData = attendanceScreenData,
-                        onAttendClick = {
-                            onAttendClick(attendanceScreenData.contentUrls)
-                        },
+                        onAttendClick = { onAttendClick(attendanceScreenData.contentUrls) },
                     )
                 }
             }
@@ -463,28 +401,25 @@ fun AttendanceCard(
     attendanceScreenData: AttendanceScreenData,
     onAttendClick: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+
     val isAttended = attendanceScreenData.isAttended
-    val accentColor = if (isAttended) Color(0xFF10B981) else Color(0xFFEF4444)
+
+    val accentColor = if (isAttended) Color(0xFF059669) else Color(0xFFEF4444)
     val containerColor =
         if (isAttended) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+            MaterialTheme.colorScheme.primaryContainer.copy(0.2f)
         } else {
-            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+            MaterialTheme.colorScheme.errorContainer.copy(0.2f)
         }
 
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val buttonScale by animateFloatAsState(if (isPressed) 0.92f else 1f, label = "btn_scale")
-
     Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        modifier = Modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.15f)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor),
+        border = BorderStroke(1.dp, accentColor.copy(0.2f)),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.Start,
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
@@ -496,7 +431,7 @@ fun AttendanceCard(
                     text = "SESI",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Black,
-                    color = accentColor.copy(alpha = 0.8f),
+                    color = accentColor,
                     letterSpacing = 1.5.sp,
                 )
 
@@ -528,19 +463,28 @@ fun AttendanceCard(
                     )
                 }
             } else if (attendanceScreenData.contentUrls.isNotEmpty()) {
-                Box(
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by rememberPressedState(interactionSource)
+                val buttonScale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.95f else 1f,
+                    label = "btn_scale",
+                )
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            delay(150)
+                            onAttendClick()
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(accentColor),
                     modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                scaleX = buttonScale
-                                scaleY = buttonScale
-                            }.clip(RoundedCornerShape(10.dp))
-                            .background(accentColor)
-                            .clickable(interactionSource = interactionSource, indication = null) {
-                                onAttendClick()
-                            }.height(38.dp),
-                    contentAlignment = Alignment.Center,
+                        Modifier.fillMaxWidth().height(38.dp).graphicsLayer {
+                            scaleX = buttonScale
+                            scaleY = buttonScale
+                        },
+                    interactionSource = interactionSource,
                 ) {
                     Text(
                         text = "Isi Absen",

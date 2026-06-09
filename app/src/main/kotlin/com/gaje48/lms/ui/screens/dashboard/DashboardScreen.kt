@@ -65,6 +65,7 @@ import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Student
 import com.gaje48.lms.ui.components.EmptyGif
+import com.gaje48.lms.ui.components.FloatingBlobsBackground
 import com.gaje48.lms.ui.components.InfoBadge
 import com.gaje48.lms.ui.components.rememberPressedState
 import dev.chrisbanes.haze.hazeEffect
@@ -156,283 +157,291 @@ fun DashboardScreenStateless(
     onAssignmentClick: (String) -> Unit,
     onLogout: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
+    FloatingBlobsBackground {
+        val scope = rememberCoroutineScope()
 
-    val hazeState = rememberHazeState()
+        val hazeState = rememberHazeState()
 
-    val confirmInteraction = remember { MutableInteractionSource() }
-    val isConfirmPressed by rememberPressedState(confirmInteraction)
-    val confirmScale by animateFloatAsState(if (isConfirmPressed) 0.95f else 1f, label = "logout_confirm")
+        var showLogoutDialog by remember { mutableStateOf(false) }
 
-    val dismissInteraction = remember { MutableInteractionSource() }
-    val isDismissPressed by rememberPressedState(dismissInteraction)
-    val dismissScale by animateFloatAsState(if (isDismissPressed) 0.95f else 1f, label = "logout_dismiss")
-
-    var showLogoutDialog by remember { mutableStateOf(false) }
-
-    if (showLogoutDialog) {
-        AlertDialog(
-            icon = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp),
-                )
-            },
-            title = {
-                Text(
-                    text = "Keluar Akun",
-                    fontWeight = FontWeight.ExtraBold,
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.titleLarge,
-                )
-            },
-            text = {
-                Text(
-                    text = "Apakah kamu yakin ingin logout dari sistem? Kamu perlu masuk kembali menggunakan NIM dan password.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            delay(150)
-                            onLogout()
-                        }
-                    },
-                    modifier =
-                        Modifier.graphicsLayer {
-                            scaleX = confirmScale
-                            scaleY = confirmScale
-                        },
-                    shape = RoundedCornerShape(14.dp),
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError,
-                        ),
-                    interactionSource = confirmInteraction,
-                ) { Text(text = "Logout", fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            delay(150)
-                            showLogoutDialog = false
-                        }
-                    },
-                    modifier =
-                        Modifier.graphicsLayer {
-                            scaleX = dismissScale
-                            scaleY = dismissScale
-                        },
-                    shape = RoundedCornerShape(14.dp),
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
-                    interactionSource = dismissInteraction,
-                ) {
-                    Text(
-                        text = "Batal",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            },
-            onDismissRequest = { showLogoutDialog = false },
-            modifier =
-                Modifier
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                        RoundedCornerShape(24.dp),
-                    ),
-            shape = RoundedCornerShape(24.dp),
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-            iconContentColor = MaterialTheme.colorScheme.error,
-        )
-    }
-
-    Scaffold(
-        containerColor = Color.Transparent,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                modifier = Modifier.hazeEffect(hazeState, HazeMaterials.ultraThin()),
-                title = {
-                    Column {
-                        Text(
-                            text = "Halo, ${student.studentName.substringBefore(' ')}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                        )
-                        Text(
-                            text = "Selamat datang kembali",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
+        if (showLogoutDialog) {
+            AlertDialog(
+                icon = {
+                    Icon(Icons.AutoMirrored.Filled.ExitToApp, null, Modifier.size(28.dp))
                 },
-                actions = {
-                    val logoutBtnInteraction = remember { MutableInteractionSource() }
-                    val isLogoutBtnPressed by rememberPressedState(logoutBtnInteraction)
-                    val logoutBtnScale by animateFloatAsState(if (isLogoutBtnPressed) 0.95f else 1f, label = "logout_btn_scale")
+                title = {
+                    Text(
+                        text = "Keluar Akun",
+                        fontWeight = FontWeight.ExtraBold,
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Apakah kamu yakin ingin logout dari sistem? Kamu perlu masuk kembali menggunakan NIM dan password.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                confirmButton = {
+                    val confirmInteraction = remember { MutableInteractionSource() }
+                    val isConfirmPressed by rememberPressedState(confirmInteraction)
+                    val confirmScale by animateFloatAsState(
+                        targetValue = if (isConfirmPressed) 0.95f else 1f,
+                        label = "logout_confirm",
+                    )
 
                     Button(
                         onClick = {
                             scope.launch {
                                 delay(150)
-                                showLogoutDialog = true
+                                onLogout()
                             }
                         },
-                        interactionSource = logoutBtnInteraction,
+                        modifier =
+                            Modifier.graphicsLayer {
+                                scaleX = confirmScale
+                                scaleY = confirmScale
+                            },
+                        shape = RoundedCornerShape(12.dp),
                         colors =
                             ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError,
+                            ),
+                        interactionSource = confirmInteraction,
+                    ) { Text(text = "Logout", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    val dismissInteraction = remember { MutableInteractionSource() }
+                    val isDismissPressed by rememberPressedState(dismissInteraction)
+                    val dismissScale by animateFloatAsState(
+                        targetValue = if (isDismissPressed) 0.95f else 1f,
+                        label = "logout_dismiss",
+                    )
+
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                delay(150)
+                                showLogoutDialog = false
+                            }
+                        },
+                        modifier =
+                            Modifier.graphicsLayer {
+                                scaleX = dismissScale
+                                scaleY = dismissScale
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f),
                                 contentColor = MaterialTheme.colorScheme.onSurface,
                             ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(),
-                        modifier =
-                            Modifier.padding(end = 12.dp).size(50.dp).graphicsLayer {
-                                scaleX = logoutBtnScale
-                                scaleY = logoutBtnScale
-                            },
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
+                        interactionSource = dismissInteraction,
                     ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ExitToApp,
-                            contentDescription = "Logout",
-                            tint = MaterialTheme.colorScheme.error,
+                        Text(
+                            text = "Batal",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
                 },
+                onDismissRequest = { showLogoutDialog = false },
+                modifier =
+                    Modifier
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(0.2f),
+                            shape = RoundedCornerShape(24.dp),
+                        ),
+                shape = RoundedCornerShape(24.dp),
+                containerColor = MaterialTheme.colorScheme.surface.copy(0.8f),
+                iconContentColor = MaterialTheme.colorScheme.error,
             )
-        },
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier.hazeSource(hazeState),
-            contentPadding = PaddingValues(20.dp, paddingValues.calculateTopPadding() + 16.dp, 20.dp, 32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            item { StudentProfileCard(student = student) }
-
-            if (courses.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillParentMaxHeight(0.7f),
-                        contentAlignment = Alignment.Center,
-                    ) { EmptyGif(label = "Belum ada jadwal mata kuliah") }
-                }
-
-                return@LazyColumn
-            }
-
-            item {
-                Text(
-                    text = "Jadwal Kuliah Anda",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                )
-            }
-
-            items(
-                items = courses.zip(allAttendances),
-                key = { (course, _) -> course.courseCode },
-            ) { (course, attendancesByCourse) ->
-                CourseCard(
-                    course = course,
-                    attendancesByCourse = attendancesByCourse,
-                    onCourseClick = onCourseClick,
-                    onAttendanceClick = onAttendanceClick,
-                    onAssignmentClick = onAssignmentClick,
-                )
-            }
         }
-    }
-}
 
-@Composable
-fun StudentProfileCard(student: Student) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-            ),
-        border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                    modifier = Modifier.size(80.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                ) {
-                    if (student.studentProfilePictureUrl != null) {
-                        AsyncImage(
-                            model = student.studentProfilePictureUrl,
-                            contentDescription = "Foto Profil",
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(Color.Transparent),
+                    modifier = Modifier.hazeEffect(hazeState, HazeMaterials.ultraThin()),
+                    title = {
+                        Column {
+                            Text(
+                                text = "Halo, ${student.studentName.substringBefore(' ')}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                            )
+                            Text(
+                                text = "Selamat datang kembali",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    },
+                    actions = {
+                        val logoutBtnInteraction = remember { MutableInteractionSource() }
+                        val isLogoutBtnPressed by rememberPressedState(logoutBtnInteraction)
+                        val logoutBtnScale by animateFloatAsState(
+                            targetValue = if (isLogoutBtnPressed) 0.95f else 1f,
+                            label = "logout_btn_scale",
                         )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.padding(18.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    delay(150)
+                                    showLogoutDialog = true
+                                }
+                            },
+                            modifier =
+                                Modifier.padding(end = 12.dp).size(50.dp).graphicsLayer {
+                                    scaleX = logoutBtnScale
+                                    scaleY = logoutBtnScale
+                                },
+                            shape = CircleShape,
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
+                            contentPadding = PaddingValues(),
+                            interactionSource = logoutBtnInteraction,
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Logout",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    },
+                )
+            },
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) { paddingValues ->
+            LazyColumn(
+                modifier = Modifier.hazeSource(hazeState),
+                contentPadding =
+                    PaddingValues(
+                        start = 20.dp,
+                        top = paddingValues.calculateTopPadding() + 16.dp,
+                        end = 20.dp,
+                        bottom = 20.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.primaryContainer.copy(0.4f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(0.2f)),
+                    ) {
+                        Column(Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    modifier = Modifier.size(80.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary.copy(0.2f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                ) {
+                                    if (student.studentProfilePictureUrl != null) {
+                                        AsyncImage(student.studentProfilePictureUrl, "Foto Profil")
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Person,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(18.dp),
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.width(16.dp))
+
+                                Column {
+                                    Text(
+                                        text = student.studentName,
+                                        fontWeight = FontWeight.Black,
+                                        lineHeight = 26.sp,
+                                        overflow = TextOverflow.Ellipsis,
+                                        maxLines = 2,
+                                        style = MaterialTheme.typography.titleLarge,
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "NPM ${student.npm}",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp,
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.height(16.dp))
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(0.2f))
+
+                            Spacer(Modifier.height(14.dp))
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                InfoBadge(
+                                    icon = Icons.Default.School,
+                                    text = student.studyProgram,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+
+                                if (student.classCode != null) {
+                                    InfoBadge(
+                                        icon = Icons.Default.MeetingRoom,
+                                        text = "Kelas ${student.classCode}",
+                                        color = MaterialTheme.colorScheme.secondary,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                if (courses.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillParentMaxHeight(0.7f),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            EmptyGif(label = "Belum ada jadwal mata kuliah")
+                        }
+                    }
 
-                Column {
+                    return@LazyColumn
+                }
+
+                item {
                     Text(
-                        text = student.studentName,
+                        text = "Jadwal Kuliah Anda",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 26.sp,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "NPM ${student.npm}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp,
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                InfoBadge(
-                    icon = Icons.Default.School,
-                    text = student.studyProgram,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-
-                if (student.classCode != null) {
-                    InfoBadge(
-                        icon = Icons.Default.MeetingRoom,
-                        text = "Kelas ${student.classCode}",
-                        color = MaterialTheme.colorScheme.secondary,
+                items(
+                    items = courses.zip(allAttendances),
+                    key = { (course, _) -> course.courseCode },
+                ) { (course, attendancesByCourse) ->
+                    CourseCard(
+                        course = course,
+                        attendancesByCourse = attendancesByCourse,
+                        onCourseClick = onCourseClick,
+                        onAttendanceClick = onAttendanceClick,
+                        onAssignmentClick = onAssignmentClick,
                     )
                 }
             }
@@ -452,64 +461,56 @@ fun CourseCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by rememberPressedState(interactionSource)
-    val cardScale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "card_scale")
+    val cardScale by animateFloatAsState(targetValue = if (isPressed) 0.95f else 1f, label = "card_scale")
 
     Card(
-        modifier =
-            Modifier.graphicsLayer {
-                scaleX = cardScale
-                scaleY = cardScale
-            },
         onClick = {
             scope.launch {
                 delay(150)
                 onCourseClick(course.courseCode)
             }
         },
+        modifier =
+            Modifier.graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
+        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surface.copy(0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
         interactionSource = interactionSource,
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
+        Column(Modifier.padding(20.dp)) {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                 Column {
                     Text(
                         text = course.lecturerName.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.sp,
+                        style = MaterialTheme.typography.labelSmall,
                     )
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(Modifier.height(2.dp))
 
                     Text(
                         text = course.courseName,
-                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         lineHeight = 24.sp,
+                        style = MaterialTheme.typography.titleMedium,
                     )
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
                     modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondary.copy(0.2f),
                 ) {
-                    Icon(
-                        Icons.Default.School,
-                        contentDescription = null,
-                        modifier = Modifier.padding(10.dp),
-                        tint = MaterialTheme.colorScheme.secondary,
-                    )
+                    Icon(Icons.Default.School, null, Modifier.padding(10.dp), MaterialTheme.colorScheme.secondary)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoBadge(
@@ -524,24 +525,20 @@ fun CourseCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
             AttendanceGraph(attendancesByCourse.attendances)
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(0.2f))
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Timer,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
+                Icon(Icons.Default.Timer, null, Modifier.size(16.dp))
 
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(Modifier.width(6.dp))
 
                 Text(
                     text = course.clock,
@@ -553,11 +550,11 @@ fun CourseCard(
 
                 val abInteraction = remember { MutableInteractionSource() }
                 val isAbPressed by rememberPressedState(abInteraction)
-                val abScale by animateFloatAsState(if (isAbPressed) 0.95f else 1f, label = "ab")
+                val abScale by animateFloatAsState(targetValue = if (isAbPressed) 0.95f else 1f, label = "ab")
 
                 val tgInteraction = remember { MutableInteractionSource() }
                 val isTgPressed by rememberPressedState(tgInteraction)
-                val tgScale by animateFloatAsState(if (isTgPressed) 0.95f else 1f, label = "tg")
+                val tgScale by animateFloatAsState(targetValue = if (isTgPressed) 0.95f else 1f, label = "tg")
 
                 Button(
                     onClick = {
@@ -566,25 +563,21 @@ fun CourseCard(
                             onAttendanceClick(course.courseCode)
                         }
                     },
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                            contentColor = MaterialTheme.colorScheme.primary,
-                        ),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                    interactionSource = abInteraction,
                     modifier =
                         Modifier.graphicsLayer {
                             scaleX = abScale
                             scaleY = abScale
                         },
+                    shape = RoundedCornerShape(12.dp),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(0.2f),
+                            contentColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    interactionSource = abInteraction,
                 ) {
-                    Text(
-                        "Presensi",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                    )
+                    Text(text = "Presensi", fontSize = 12.sp, fontWeight = FontWeight.Black)
                 }
 
                 Spacer(Modifier.width(12.dp))
@@ -596,25 +589,21 @@ fun CourseCard(
                             onAssignmentClick(course.courseCode)
                         }
                     },
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                            contentColor = MaterialTheme.colorScheme.secondary,
-                        ),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                    interactionSource = tgInteraction,
                     modifier =
                         Modifier.graphicsLayer {
                             scaleX = tgScale
                             scaleY = tgScale
                         },
+                    shape = RoundedCornerShape(12.dp),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                            contentColor = MaterialTheme.colorScheme.secondary,
+                        ),
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    interactionSource = tgInteraction,
                 ) {
-                    Text(
-                        "Tugas",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                    )
+                    Text("Tugas", fontSize = 12.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -633,11 +622,7 @@ fun AttendanceGraph(attendances: List<Boolean>) {
     val upcomingCount = 16 - attendances.size
 
     Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(
                 text = "Track Kehadiran",
                 style = MaterialTheme.typography.labelMedium,
@@ -651,7 +636,7 @@ fun AttendanceGraph(attendances: List<Boolean>) {
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             attendances.forEach { isPresent ->

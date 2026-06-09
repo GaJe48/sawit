@@ -1,13 +1,7 @@
 package com.gaje48.lms.ui.screens.meeting
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,14 +10,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -36,19 +28,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -60,34 +54,58 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gaje48.lms.R
+import com.gaje48.lms.model.ContentVmData
+import com.gaje48.lms.model.Course
+import com.gaje48.lms.model.Meeting
 import com.gaje48.lms.ui.components.EmptyGif
-import com.gaje48.lms.ui.screens.dashboard.InfoChip
+import com.gaje48.lms.ui.components.FloatingBlobsBackground
+import com.gaje48.lms.ui.components.InfoBadge
+import com.gaje48.lms.ui.components.rememberPressedState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+
+@Composable
+fun MeetingScreen(
+    viewModel: MeetingViewModel,
+    onBackClick: () -> Unit,
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val course = uiState.course ?: return
+
+    MeetingScreenStateless(
+        course = course,
+        meetings = uiState.meetings,
+        observeContent = { viewModel.observeContent(it) },
+        onDownloadFile = { fileUrl, meetingUrl -> viewModel.downloadFile(fileUrl, meetingUrl) },
+        onBackClick = onBackClick,
+    )
+}
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -95,84 +113,26 @@ import dev.chrisbanes.haze.rememberHazeState
     ExperimentalMaterial3ExpressiveApi::class,
 )
 @Composable
-fun MeetingScreen(
-    viewModel: MeetingViewModel,
+fun MeetingScreenStateless(
+    course: Course,
+    meetings: List<Meeting>,
+    observeContent: (String) -> Flow<Pair<List<ContentVmData>, List<ContentVmData>>>,
+    onDownloadFile: (String, String) -> Unit,
     onBackClick: () -> Unit,
 ) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var expandedMeetingUrl by remember { mutableStateOf<String?>(null) }
-
-    val course = uiState.course ?: return
-    val meetings = uiState.meetings
+    val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
 
     val hazeState = rememberHazeState()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    val infiniteTransition = rememberInfiniteTransition(label = "meeting_blobs")
-    val blobTime by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2f * Math.PI.toFloat(),
-        animationSpec =
-            infiniteRepeatable(
-                animation = tween(28000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-        label = "blob_time",
-    )
+    var expandedMeetingUrl by remember { mutableStateOf<String?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Box(
-            modifier =
-                Modifier
-                    .size(400.dp)
-                    .graphicsLayer {
-                        translationX = (25f * kotlin.math.sin(blobTime)).dp.toPx() - 100.dp.toPx()
-                        translationY = (25f * kotlin.math.cos(blobTime)).dp.toPx() - 50.dp.toPx()
-                    }.background(
-                        Brush.radialGradient(
-                            colors =
-                                listOf(
-                                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f),
-                                    Color.Transparent,
-                                ),
-                        ),
-                    ),
-        )
-        Box(
-            modifier =
-                Modifier
-                    .size(350.dp)
-                    .align(Alignment.BottomEnd)
-                    .graphicsLayer {
-                        translationX = (30f * kotlin.math.cos(blobTime + 1.5f)).dp.toPx() + 80.dp.toPx()
-                        translationY = (30f * kotlin.math.sin(blobTime + 1.5f)).dp.toPx() + 80.dp.toPx()
-                    }.background(
-                        Brush.radialGradient(
-                            colors =
-                                listOf(
-                                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f),
-                                    Color.Transparent,
-                                ),
-                        ),
-                    ),
-        )
-
+    FloatingBlobsBackground {
         Scaffold(
-            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-            containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    scrollBehavior = scrollBehavior,
-                    colors =
-                        TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent,
-                        ),
-                    modifier =
-                        Modifier.hazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.ultraThin(),
-                        ),
+                    colors = TopAppBarDefaults.topAppBarColors(Color.Transparent),
+                    modifier = Modifier.hazeEffect(hazeState, HazeMaterials.ultraThin()),
                     title = {
                         Column {
                             Text(
@@ -191,148 +151,158 @@ fun MeetingScreen(
                         }
                     },
                     navigationIcon = {
-                        IconButton(
-                            onClick = onBackClick,
+                        val backInteraction = remember { MutableInteractionSource() }
+                        val isBackPressed by rememberPressedState(backInteraction)
+                        val backScale by animateFloatAsState(
+                            targetValue = if (isBackPressed) 0.95f else 1f,
+                            label = "back_scale",
+                        )
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    delay(150)
+                                    onBackClick()
+                                }
+                            },
                             modifier =
-                                Modifier
-                                    .padding(start = 12.dp, end = 4.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                        CircleShape,
-                                    ).border(0.5.dp, Color.White.copy(alpha = 0.15f), CircleShape),
+                                Modifier.padding(start = 12.dp, end = 4.dp).size(50.dp).graphicsLayer {
+                                    scaleX = backScale
+                                    scaleY = backScale
+                                },
+                            shape = CircleShape,
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
+                            contentPadding = PaddingValues(),
+                            interactionSource = backInteraction,
                         ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                            )
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                         }
                     },
                 )
             },
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ) { paddingValues ->
             LazyColumn(
-                modifier = Modifier.fillMaxSize().hazeSource(hazeState),
+                modifier = Modifier.hazeSource(hazeState),
                 contentPadding =
                     PaddingValues(
-                        top = paddingValues.calculateTopPadding() + 16.dp,
-                        bottom = 32.dp,
                         start = 20.dp,
+                        top = paddingValues.calculateTopPadding() + 16.dp,
                         end = 20.dp,
+                        bottom = 20.dp,
                     ),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp),
                         colors =
                             CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                                MaterialTheme.colorScheme.surface.copy(0.4f),
                             ),
-                        border =
-                            BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                            ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
                     ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f),
+                        Column(Modifier.padding(20.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    modifier = Modifier.size(52.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.secondary.copy(0.2f),
                                 ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
-                                        modifier = Modifier.size(52.dp),
-                                    ) {
-                                        if (!course.lecturerProfilePictureUrl.isNullOrEmpty()) {
-                                            AsyncImage(
-                                                model = course.lecturerProfilePictureUrl,
-                                                contentDescription = "Foto Profil Dosen",
-                                                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                                contentScale = ContentScale.Crop,
-                                            )
-                                        } else {
-                                            Icon(
-                                                Icons.Default.Person,
-                                                contentDescription = null,
-                                                modifier = Modifier.padding(12.dp),
-                                                tint = MaterialTheme.colorScheme.secondary,
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Column {
-                                        Text(
-                                            text = course.lecturerName,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                        )
-                                        Text(
-                                            text = course.lecturerPhoneNumber ?: "Nomor HP tidak tersedia",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontWeight = FontWeight.Medium,
+                                    if (course.lecturerProfilePictureUrl != null) {
+                                        AsyncImage(course.lecturerProfilePictureUrl, "Foto Profil Dosen")
+                                    } else {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(12.dp),
+                                            tint = MaterialTheme.colorScheme.secondary,
                                         )
                                     }
                                 }
 
-                                if (!course.lecturerPhoneNumber.isNullOrEmpty()) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        IconButton(
-                                            onClick = { },
-                                            modifier =
-                                                Modifier
-                                                    .background(
-                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                                        CircleShape,
-                                                    ).size(36.dp),
-                                        ) {
-                                            Icon(
-                                                Icons.Default.ContentCopy,
-                                                contentDescription = "Salin Nomor HP",
-                                                modifier = Modifier.size(16.dp),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
+                                Spacer(Modifier.width(16.dp))
+
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        text = course.lecturerName,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        style = MaterialTheme.typography.titleMedium,
+                                    )
+                                    Text(
+                                        text = course.lecturerPhoneNumber ?: "Nomor HP tidak tersedia",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+
+                                if (course.lecturerPhoneNumber != null) {
+                                    val launchWaInteraction = remember { MutableInteractionSource() }
+                                    val isLaunchWaPressed by rememberPressedState(launchWaInteraction)
+                                    val launchWaScale by animateFloatAsState(
+                                        targetValue = if (isLaunchWaPressed) 0.95f else 1f,
+                                        label = "wa_scale",
+                                    )
+
+                                    IconButton(
+                                        onClick = {
+                                            scope.launch {
+                                                delay(150)
+                                                uriHandler.openUri("https://wa.me/62" + course.lecturerPhoneNumber)
+                                            }
+                                        },
+                                        modifier =
+                                            Modifier
+                                                .padding(end = 4.dp)
+                                                .graphicsLayer {
+                                                    scaleX = launchWaScale
+                                                    scaleY = launchWaScale
+                                                }.border(
+                                                    1.dp,
+                                                    Color(0xFF25D366).copy(alpha = 0.2f),
+                                                    CircleShape,
+                                                ).size(36.dp),
+                                        colors =
+                                            IconButtonDefaults.iconButtonColors(
+                                                containerColor = Color(0xFF25D366).copy(0.2f),
+                                                contentColor = Color(0xFF25D366),
+                                            ),
+                                        interactionSource = launchWaInteraction,
+                                    ) {
+                                        Icon(
+                                            painterResource(R.drawable.wa),
+                                            contentDescription = "Hubungi WhatsApp",
+                                            modifier = Modifier.size(16.dp),
+                                        )
                                     }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(Modifier.height(20.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            ) {
-                                val chipBg = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 val chipColor = MaterialTheme.colorScheme.secondary
-                                InfoChip(
+                                InfoBadge(
                                     icon = Icons.Default.CalendarMonth,
                                     text = course.day,
-                                    containerColor = chipBg,
-                                    contentColor = chipColor,
-                                    fontWeight = FontWeight.Bold,
+                                    color = chipColor,
                                 )
-                                InfoChip(
+                                InfoBadge(
                                     icon = Icons.Default.Timer,
                                     text = course.clock,
-                                    containerColor = chipBg,
-                                    contentColor = chipColor,
-                                    fontWeight = FontWeight.Bold,
+                                    color = chipColor,
                                 )
-                                InfoChip(
+                                InfoBadge(
                                     icon = Icons.Default.MeetingRoom,
                                     text = "Ruang " + course.room,
-                                    containerColor = chipBg,
-                                    contentColor = chipColor,
-                                    fontWeight = FontWeight.Bold,
+                                    color = chipColor,
                                 )
                             }
                         }
@@ -342,9 +312,11 @@ fun MeetingScreen(
                 if (meetings.isEmpty()) {
                     item {
                         Box(
-                            modifier = Modifier.fillParentMaxWidth().fillParentMaxHeight(0.7f),
+                            modifier = Modifier.fillParentMaxHeight(0.7f),
                             contentAlignment = Alignment.Center,
-                        ) { EmptyGif(label = "Belum ada daftar pertemuan") }
+                        ) {
+                            EmptyGif(label = "Belum ada daftar pertemuan")
+                        }
                     }
                     return@LazyColumn
                 }
@@ -354,24 +326,17 @@ fun MeetingScreen(
                         text = "Daftar Pertemuan",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
 
-                items(
-                    items = meetings,
-                    key = { meeting -> meeting.meetingUrl },
-                ) { meeting ->
+                items(items = meetings, key = { meeting -> meeting.meetingUrl }) { meeting ->
                     val isExpanded = expandedMeetingUrl == meeting.meetingUrl
                     MeetingCard(
                         index = meeting.meetingNumber,
                         meetingUrl = meeting.meetingUrl,
                         isExpanded = isExpanded,
-                        viewModel = viewModel,
-                        onDownloadFile = { fileUrl ->
-                            viewModel.downloadFile(fileUrl, meeting.meetingUrl)
-                        },
+                        observeContent = observeContent,
+                        onDownloadFile = { onDownloadFile(it, meeting.meetingUrl) },
                         onMeetingClick = {
                             expandedMeetingUrl = if (isExpanded) null else meeting.meetingUrl
                         },
@@ -387,111 +352,99 @@ fun MeetingCard(
     index: Byte,
     meetingUrl: String,
     isExpanded: Boolean,
-    viewModel: MeetingViewModel,
+    observeContent: (String) -> Flow<Pair<List<ContentVmData>, List<ContentVmData>>>,
     onDownloadFile: (String) -> Unit,
     onMeetingClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val cardScale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "card_scale")
-    val rotationAngle by animateFloatAsState(
-        targetValue = if (isExpanded) 180f else 0f,
-        label = "rotation_angle",
-    )
-
-    val contents by viewModel
-        .observeContentVmDatas(meetingUrl)
-        .collectAsStateWithLifecycle(initialValue = emptyList())
-
-    val (files, links) =
-        remember(contents) {
-            val fileKeywords = listOf("pdf", "word", "powerpoint", "excel", "archive")
-            contents.partition { item ->
-                fileKeywords.any { keyword ->
-                    item.type.contains(keyword, ignoreCase = true)
-                }
-            }
-        }
-
+    val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
 
+    val (files, links) =
+        observeContent(meetingUrl)
+            .collectAsStateWithLifecycle(
+                initialValue = Pair(emptyList(), emptyList()),
+            ).value
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by rememberPressedState(interactionSource)
+    val cardScale by animateFloatAsState(targetValue = if (isPressed) 0.95f else 1f, label = "card_scale")
+
+    val rotationAngle by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f, label = "rotation_angle")
+
     Card(
+        onClick = {
+            scope.launch {
+                delay(150)
+                onMeetingClick()
+            }
+        },
         modifier =
-            Modifier.fillMaxWidth().graphicsLayer {
+            Modifier.graphicsLayer {
                 scaleX = cardScale
                 scaleY = cardScale
             },
         shape = RoundedCornerShape(24.dp),
-        onClick = onMeetingClick,
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-            ),
-        border =
-            BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-            ),
+        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surface.copy(0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
         interactionSource = interactionSource,
     ) {
         Column {
             Row(
-                modifier = Modifier.padding(18.dp).fillMaxWidth(),
+                modifier = Modifier.padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "%02d".format(index),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
+                Box(
+                    modifier =
+                        Modifier
+                            .size(44.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary.copy(0.2f),
+                                shape = RoundedCornerShape(12.dp),
+                            ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "%02d".format(index),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                Spacer(Modifier.width(16.dp))
 
-                    Column {
-                        Text(
-                            text = "Pertemuan Ke-$index",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "Ketuk untuk melihat file materi & sesi",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Pertemuan Ke-$index",
+                        fontWeight = FontWeight.ExtraBold,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = "Ketuk untuk melihat file materi & sesi",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
 
                 Icon(
                     imageVector = Icons.Default.ExpandMore,
                     contentDescription = null,
                     modifier = Modifier.graphicsLayer { rotationZ = rotationAngle }.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top),
             ) {
                 Column(
-                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp).fillMaxWidth(),
+                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (contents.isEmpty()) {
+                    if (files.isEmpty() && links.isEmpty()) {
                         Text(
                             text = "Tidak ada file materi yang tersedia",
                             style = MaterialTheme.typography.bodySmall,
@@ -515,7 +468,6 @@ fun MeetingCard(
                                     description = "Ketuk untuk mengunduh berkas",
                                     icon = iconPainter(item.type),
                                     accentColor = MaterialTheme.colorScheme.primary,
-                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                                     onClick = { onDownloadFile(item.contentUrl) },
                                 )
                             }
@@ -535,7 +487,6 @@ fun MeetingCard(
                                     description = "Ketuk untuk membuka link di browser",
                                     icon = iconPainter(item.type),
                                     accentColor = MaterialTheme.colorScheme.secondary,
-                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
                                     onClick = { uriHandler.openUri(item.contentUrl) },
                                 )
                             }
@@ -579,27 +530,29 @@ fun ContentCard(
     description: String,
     icon: Painter,
     accentColor: Color,
-    containerColor: Color,
     onClick: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val cardScale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "card_scale")
+    val isPressed by rememberPressedState(interactionSource)
+    val cardScale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "card_scale")
 
     Card(
         modifier =
-            Modifier.fillMaxWidth().graphicsLayer {
+            Modifier.graphicsLayer {
                 scaleX = cardScale
                 scaleY = cardScale
             },
         shape = RoundedCornerShape(24.dp),
-        onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        border =
-            BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-            ),
+        onClick = {
+            scope.launch {
+                delay(150)
+                onClick()
+            }
+        },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
         interactionSource = interactionSource,
     ) {
         Row(
@@ -607,27 +560,22 @@ fun ContentCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = accentColor.copy(alpha = 0.12f),
-                modifier = Modifier.size(52.dp),
-                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f)),
+                shape = RoundedCornerShape(12.dp),
+                color = accentColor.copy(alpha = 0.2f),
+                contentColor = accentColor,
+                modifier = Modifier.size(44.dp),
+                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.2f)),
             ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.padding(12.dp),
-                    tint = accentColor,
-                )
+                Icon(icon, null, Modifier.padding(10.dp))
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(Modifier.fillMaxWidth()) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = description,
@@ -649,3 +597,35 @@ private fun iconPainter(type: String): Painter =
         type.contains("video") -> painterResource(id = R.drawable.video)
         else -> painterResource(id = R.drawable.link)
     }
+
+@Preview
+@Composable
+fun PreviewMeetingScreen() {
+    MeetingScreenStateless(
+        course =
+            Course(
+                courseCode = "INF401",
+                courseName = "Pemrograman Visual Lanjut",
+                lecturerName = "Dr. Budi Santoso",
+                lecturerPhoneNumber = "08123456789",
+                lecturerProfilePictureUrl = null,
+                day = "Senin",
+                clock = "08:00 - 10:30",
+                room = "Lab A",
+            ),
+        meetings =
+            listOf(
+                Meeting(
+                    meetingNumber = 1,
+                    meetingUrl = "url-1",
+                ),
+                Meeting(
+                    meetingNumber = 2,
+                    meetingUrl = "url-2",
+                ),
+            ),
+        observeContent = { flowOf(Pair(emptyList(), emptyList())) },
+        onDownloadFile = { _, _ -> },
+        onBackClick = { },
+    )
+}

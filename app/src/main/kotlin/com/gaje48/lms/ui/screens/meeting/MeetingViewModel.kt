@@ -10,6 +10,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -42,7 +43,15 @@ class MeetingViewModel(
             initialValue = MeetingUiState(),
         )
 
-    fun observeContentVmDatas(meetingUrl: String) = lmsRepository.observeContentVmDatas(meetingUrl)
+    fun observeContent(meetingUrl: String) =
+        lmsRepository.observeContentVmDatas(meetingUrl).map { contents ->
+            val fileKeywords = listOf("pdf", "word", "powerpoint", "excel", "archive")
+            contents.partition { item ->
+                fileKeywords.any { keyword ->
+                    item.type.contains(keyword)
+                }
+            }
+        }
 
     fun downloadFile(
         fileUrl: String,

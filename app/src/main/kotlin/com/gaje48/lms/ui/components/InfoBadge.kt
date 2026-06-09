@@ -21,10 +21,10 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun InfoBadge(
-    icon: ImageVector?,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
     text: String,
     color: Color,
-    modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier,
