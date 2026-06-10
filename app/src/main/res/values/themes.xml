@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.LMSUnindra" parent="android:Theme.Material.Light.NoActionBar" />
-
     <style name="Theme.Elemes.SplashScreen" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="postSplashScreenTheme">@style/Theme.LMSUnindra</item>
+        <item name="postSplashScreenTheme">@style/Theme.AppCompat.NoActionBar</item>
     </style>
 </resources>

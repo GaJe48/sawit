@@ -19,8 +19,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -89,6 +91,7 @@ import com.gaje48.lms.ui.screens.login.LoginScreen
 import com.gaje48.lms.ui.screens.login.LoginViewModel
 import com.gaje48.lms.ui.screens.meeting.MeetingScreen
 import com.gaje48.lms.ui.screens.meeting.MeetingViewModel
+import com.gaje48.lms.ui.theme.LMSUnindraTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
@@ -134,39 +137,43 @@ fun LmsApp(mainViewModel: MainViewModel) {
 
     val isLoggedIn by mainViewModel.isLoggedIn.collectAsStateWithLifecycle()
 
-    LmsAppContent(
-        isLoggedIn = isLoggedIn,
-        mainViewModel = mainViewModel,
-    )
+    LMSUnindraTheme {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            LmsAppContent(
+                isLoggedIn = isLoggedIn,
+                mainViewModel = mainViewModel,
+            )
 
-    if (showBlocker) {
-        BlockerDialog(
-            onNotif = {
-                if (canRequestNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else {
-                    val intent =
-                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            if (showBlocker) {
+                BlockerDialog(
+                    onNotif = {
+                        if (canRequestNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            val intent =
+                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                }
+
+                            context.startActivity(intent)
                         }
+                    },
+                    onAlarm = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val intent =
+                                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                    data = Uri.fromParts("package", context.packageName, null)
+                                }
 
-                    context.startActivity(intent)
-                }
-            },
-            onAlarm = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val intent =
-                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
+                            context.startActivity(intent)
                         }
-
-                    context.startActivity(intent)
-                }
-            },
-            hasNotif = hasNotif,
-            hasAlarm = hasAlarm,
-            canRequestNotif = canRequestNotif,
-        )
+                    },
+                    hasNotif = hasNotif,
+                    hasAlarm = hasAlarm,
+                    canRequestNotif = canRequestNotif,
+                )
+            }
+        }
     }
 }
 
