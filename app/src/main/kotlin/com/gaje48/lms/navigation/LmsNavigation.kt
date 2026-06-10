@@ -12,6 +12,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -88,17 +89,16 @@ import com.gaje48.lms.ui.screens.login.LoginScreen
 import com.gaje48.lms.ui.screens.login.LoginViewModel
 import com.gaje48.lms.ui.screens.meeting.MeetingScreen
 import com.gaje48.lms.ui.screens.meeting.MeetingViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Composable
 fun LmsApp(mainViewModel: MainViewModel) {
-    val scope = rememberCoroutineScope()
-    val backStack = rememberNavBackStack(LoginNavKey)
-
     val context = LocalContext.current
     val activity = context as? Activity
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var hasNotif by remember { mutableStateOf(true) }
     var hasAlarm by remember { mutableStateOf(true) }
@@ -120,7 +120,6 @@ fun LmsApp(mainViewModel: MainViewModel) {
             checkPerms()
         }
 
-    val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer =
             LifecycleEventObserver { _, event ->
@@ -133,26 +132,117 @@ fun LmsApp(mainViewModel: MainViewModel) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val isLoggedIn by mainViewModel.isLoggedIn.collectAsStateWithLifecycle(initialValue = false)
-    val isRefreshing by mainViewModel.isRefreshing.collectAsStateWithLifecycle()
+    val isLoggedIn by mainViewModel.isLoggedIn.collectAsStateWithLifecycle()
 
+    LmsAppContent(
+        isLoggedIn = isLoggedIn,
+        mainViewModel = mainViewModel,
+    )
+
+    if (showBlocker) {
+        BlockerDialog(
+            onNotif = {
+                if (canRequestNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    val intent =
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        }
+
+                    context.startActivity(intent)
+                }
+            },
+            onAlarm = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val intent =
+                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                        }
+
+                    context.startActivity(intent)
+                }
+            },
+            hasNotif = hasNotif,
+            hasAlarm = hasAlarm,
+            canRequestNotif = canRequestNotif,
+        )
+    }
+}
+
+private val LmsTransitionSpec: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
+    slideIntoContainer(
+        towards = AnimatedContentTransitionScope.SlideDirection.Left,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+    ).togetherWith(
+        slideOutOfContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.Left,
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+            targetOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
+        ) +
+            fadeOut(
+                animationSpec = tween(durationMillis = 350, easing = LinearEasing),
+                targetAlpha = 0.5f,
+            ),
+    )
+}
+
+private val LmsPopTransitionSpec: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
+    (
+        slideIntoContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.Right,
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+            initialOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
+        ) +
+            fadeIn(
+                animationSpec = tween(durationMillis = 350, easing = LinearEasing),
+                initialAlpha = 0.5f,
+            )
+    ).togetherWith(
+        slideOutOfContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.Right,
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        ),
+    )
+}
+
+@Composable
+private fun ObserveSnackbarEvents(
+    flow: Flow<String>,
+    showSnackbar: (String) -> Unit,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(flow, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            flow.collect { showSnackbar(it) }
+        }
+    }
+}
+
+@Composable
+fun LmsAppContent(
+    isLoggedIn: Boolean,
+    mainViewModel: MainViewModel,
+) {
+    val scope = rememberCoroutineScope()
+    val backStack = rememberNavBackStack(if (isLoggedIn) DashboardNavKey else LoginNavKey)
     val pullToRefreshState = rememberPullToRefreshState()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val isRefreshing by mainViewModel.isRefreshing.collectAsStateWithLifecycle()
 
     val showSnackbar: (String) -> Unit = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg) }
     }
 
+    ObserveSnackbarEvents(mainViewModel.snackbarEvent, showSnackbar)
+
     LaunchedEffect(isLoggedIn) {
-        backStack.clear()
-        backStack.add(if (isLoggedIn) DashboardNavKey else LoginNavKey)
+        backStack.removeAt(0)
+        backStack.add(0, if (isLoggedIn) DashboardNavKey else LoginNavKey)
     }
 
-    LaunchedEffect(mainViewModel.snackbarEvent, lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            mainViewModel.snackbarEvent.collect { showSnackbar(it) }
-        }
-    }
+    val onBack: () -> Unit = { backStack.removeAt(backStack.lastIndex) }
 
     val content = @Composable {
         NavDisplay(
@@ -162,43 +252,9 @@ fun LmsApp(mainViewModel: MainViewModel) {
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator(),
                 ),
-            onBack = { backStack.removeAt(backStack.lastIndex) },
-            transitionSpec = {
-                (
-                    slideIntoContainer(
-                        towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-                    )
-                ).togetherWith(
-                    slideOutOfContainer(
-                        towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-                        targetOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
-                    ) +
-                        fadeOut(
-                            animationSpec = tween(durationMillis = 350, easing = LinearEasing),
-                            targetAlpha = 0.5f,
-                        ),
-                )
-            },
-            popTransitionSpec = {
-                (
-                    slideIntoContainer(
-                        towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-                        initialOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
-                    ) +
-                        fadeIn(
-                            animationSpec = tween(durationMillis = 350, easing = LinearEasing),
-                            initialAlpha = 0.5f,
-                        )
-                ).togetherWith(
-                    slideOutOfContainer(
-                        towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-                    ),
-                )
-            },
+            onBack = onBack,
+            transitionSpec = LmsTransitionSpec,
+            popTransitionSpec = LmsPopTransitionSpec,
             entryProvider =
                 entryProvider {
                     entry<LoginNavKey> {
@@ -208,12 +264,7 @@ fun LmsApp(mainViewModel: MainViewModel) {
 
                     entry<DashboardNavKey> {
                         val viewModel = koinViewModel<DashboardViewModel>()
-                        val lifecycleOwner = LocalLifecycleOwner.current
-                        LaunchedEffect(viewModel.snackbarEvent, lifecycleOwner) {
-                            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                                viewModel.snackbarEvent.collect { showSnackbar(it) }
-                            }
-                        }
+                        ObserveSnackbarEvents(viewModel.snackbarEvent, showSnackbar)
 
                         DashboardScreen(
                             viewModel = viewModel,
@@ -225,46 +276,31 @@ fun LmsApp(mainViewModel: MainViewModel) {
 
                     entry<MeetingNavKey> { destination ->
                         val viewModel = koinViewModel<MeetingViewModel> { parametersOf(destination.courseCode) }
-                        val lifecycleOwner = LocalLifecycleOwner.current
-                        LaunchedEffect(viewModel.snackbarEvent, lifecycleOwner) {
-                            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                                viewModel.snackbarEvent.collect { showSnackbar(it) }
-                            }
-                        }
+                        ObserveSnackbarEvents(viewModel.snackbarEvent, showSnackbar)
 
                         MeetingScreen(
                             viewModel = viewModel,
-                            onBackClick = { backStack.removeAt(backStack.lastIndex) },
+                            onBackClick = onBack,
                         )
                     }
 
                     entry<AssignmentNavKey> { destination ->
                         val viewModel = koinViewModel<AssignmentViewModel> { parametersOf(destination.courseCode) }
-                        val lifecycleOwner = LocalLifecycleOwner.current
-                        LaunchedEffect(viewModel.snackbarEvent, lifecycleOwner) {
-                            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                                viewModel.snackbarEvent.collect { showSnackbar(it) }
-                            }
-                        }
+                        ObserveSnackbarEvents(viewModel.snackbarEvent, showSnackbar)
 
                         AssignmentScreen(
                             viewModel = viewModel,
-                            onBackClick = { backStack.removeAt(backStack.lastIndex) },
+                            onBackClick = onBack,
                         )
                     }
 
                     entry<AttendanceNavKey> { destination ->
                         val viewModel = koinViewModel<AttendanceViewModel> { parametersOf(destination.courseCode) }
-                        val lifecycleOwner = LocalLifecycleOwner.current
-                        LaunchedEffect(viewModel.snackbarEvent, lifecycleOwner) {
-                            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                                viewModel.snackbarEvent.collect { showSnackbar(it) }
-                            }
-                        }
+                        ObserveSnackbarEvents(viewModel.snackbarEvent, showSnackbar)
 
                         AttendanceScreen(
                             viewModel = viewModel,
-                            onBackClick = { backStack.removeAt(backStack.lastIndex) },
+                            onBackClick = onBack,
                         )
                     }
                 },
@@ -294,36 +330,6 @@ fun LmsApp(mainViewModel: MainViewModel) {
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
-    }
-
-    if (showBlocker) {
-        BlockerDialog(
-            onNotif = {
-                if (canRequestNotif) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                } else {
-                    val intent =
-                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        }
-                    context.startActivity(intent)
-                }
-            },
-            onAlarm = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val intent =
-                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
-                        }
-                    context.startActivity(intent)
-                }
-            },
-            hasNotif = hasNotif,
-            hasAlarm = hasAlarm,
-            canRequestNotif = canRequestNotif,
-        )
     }
 }
 

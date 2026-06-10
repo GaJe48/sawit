@@ -6,8 +6,10 @@ import com.gaje48.lms.data.AuthRepository
 import com.gaje48.lms.data.LmsRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MainViewModel(
@@ -16,13 +18,19 @@ class MainViewModel(
 ) : ViewModel() {
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
+
     private val _isSplashReady = MutableStateFlow(false)
     val isSplashReady = _isSplashReady.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
 
-    val isLoggedIn = authRepository.isLoggedIn
+    val isLoggedIn =
+        authRepository.isLoggedIn.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = false,
+        )
 
     fun checkLoginStatus() {
         viewModelScope.launch {
