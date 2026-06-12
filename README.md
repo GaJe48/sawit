@@ -1,152 +1,133 @@
-<p align="center">
-  <img src="banner.png" alt="LMS Unindra Banner" />
-</p>
+<img src="assets/banner.png" align="center" />
 
-<h1 align="center">LMS Unindra Mobile</h1>
-<p align="center">
-  Modern Android Client for LMS Unindra
-</p>
+##
 
-# LMS Unindra
-
-Aplikasi Android native berbasis Jetpack Compose untuk membantu mahasiswa mengakses LMS Unindra dari perangkat mobile. Proyek ini menangani login, mengambil data dashboard, menampilkan daftar pertemuan, membuka materi, melihat rekap presensi, mengunduh file, dan mengunggah tugas langsung dari aplikasi.
+Aplikasi Android native berbasis Jetpack Compose dengan modul backend berbasis **Rust** untuk membantu mahasiswa mengakses **SAWIT (Sistem Akademik & Wahana Informasi Terpadu)** langsung dari perangkat mobile. Proyek ini menangani autentikasi ke portal `lms.unindra.ac.id`, bypass captcha secara lokal, manajemen session, serta scraping data akademik dengan performa tinggi dan parsing HTML yang tangguh di sisi Rust.
 
 ## Fitur Utama
 
-- Login ke LMS Unindra menggunakan NIM dan password.
-- Auto-login menggunakan kredensial yang disimpan secara aman dengan enkripsi AES-256 GCM.
-- Pemecahan captcha matematika otomatis dengan ML Kit Text Recognition.
-- Menampilkan profil mahasiswa dan daftar mata kuliah dari dashboard LMS.
-- Menampilkan daftar pertemuan per mata kuliah.
-- Menampilkan detail materi per pertemuan, termasuk file dan tautan eksternal.
-- Rekap presensi per mata kuliah.
-- Download materi ke folder `Downloads/elemes` dengan progress notification.
-- Upload tugas langsung dari file picker dengan progress indicator.
-- Pull-to-refresh di beberapa halaman utama.
-- UI modern dengan efek glassmorphism (Haze).
+- **Login Otomatis**: Masuk ke SAWIT menggunakan NIM dan password.
+- **Enkripsi Kredensial**: Auto-login aman menggunakan kredensial yang disimpan lokal dengan enkripsi AES-256 GCM (Google Tink).
+- **OCR Captcha Solver**: Pemecahan captcha matematika otomatis secara lokal menggunakan library OCR (`ocr-rs` & `image` di sisi Rust) tanpa API pihak ketiga.
+- **Dashboard Akademik**: Menampilkan profil mahasiswa, daftar mata kuliah aktif, dan rekap presensi dari SAWIT.
+- **Detail Pertemuan**: Menampilkan sesi pertemuan, deskripsi, serta tautan aktivitas per mata kuliah.
+- **Unduh Materi**: Mendownload file kuliah ke folder publik `Downloads/sawit` disertai notification progress bar secara real-time.
+- **Unggah Tugas**: Mengunggah file tugas kuliah dari file picker langsung ke server melalui multipart stream.
+- **Sinkronisasi Cepat**: Fitur pull-to-refresh dengan indikator sinkronisasi data global yang mutakhir.
+- **UI Modern Premium**: Desain antarmuka modern dengan efek glassmorphic (Haze) dan mikro-animasi bouncy scale.
 
 ## Stack Teknologi
 
-- **Bahasa:** Kotlin
-- **UI:** Jetpack Compose, Material 3, Haze (Glassmorphism)
-- **Navigasi:** Navigation 3 (AndroidX)
-- **Networking:** Ktor Client (CIO engine)
-- **Parsing:** Jsoup
-- **ML:** ML Kit Text Recognition
-- **DI:** Koin
-- **Storage:** Room (Database), DataStore (Preferences)
-- **Security:** Google Tink (AES-256 GCM)
-- **Image Loading:** Coil (termasuk dukungan GIF)
-- **Concurrency:** Kotlin Coroutines
+Proyek ini dibangun menggunakan arsitektur hybrid **Android Kotlin (UI)** dan **Rust (Business Logic)** untuk menjamin kecepatan parsing data dan modularitas kode yang optimal.
+
+### 1. Android Frontend (Kotlin & Compose)
+- **UI Framework**: Jetpack Compose, Material 3, Haze (Glassmorphism effects)
+- **Navigasi**: Navigation 3 (AndroidX)
+- **Local Cache**: Room Database (menyimpan cache mata kuliah, pertemuan, tugas, dan kehadiran untuk akses offline)
+- **Storage**: DataStore Preferences
+- **Keamanan**: Google Tink (AES-256 GCM untuk enkripsi kredensial lokal)
+- **Dependency Injection**: Koin
+- **Image Loading**: Coil (mendukung format gambar dan GIF)
+- **JNI Interop**: Memanfaatkan berkas bindings hasil generasi UniFFI untuk memanggil fungsi native Rust via standar JNI (Java Native Interface)
+
+### 2. Rust Backend (`lms-rust`)
+- **Networking**: `reqwest` (mendukung cookie persistence untuk menjaga session, form data, dan multipart stream uploads)
+- **HTML Scraping**: `scraper` (CSS Selectors parser untuk scraping DOM HTML lms.unindra.ac.id secara efisien)
+- **OCR Engine**: `ocr-rs` & `image` (memecahkan captcha matematika langsung di level native)
+- **Async Runtime**: `tokio` (multi-threaded executor di sisi Rust) & `futures`
+- **JNI Bindings**: `UniFFI` (generasi boilerplate interface Kotlin-Rust secara otomatis)
 
 ## Struktur Proyek
 
 ```text
 .
-├── app/
-│   ├── src/main/kotlin/com/gaje48/lms/
-│   │   ├── MainActivity.kt
-│   │   ├── LmsApplication.kt
-│   │   ├── data/             # Layer data (Repository & Data Sources)
-│   │   ├── di/               # Konfigurasi Koin
-│   │   ├── model/            # Data models
-│   │   ├── navigation/       # Navigasi aplikasi
-│   │   ├── ui/
-│   │   │   ├── components/   # Komponen UI reusable
-│   │   │   ├── screens/      # Halaman aplikasi (Login, Dashboard, dll.)
-│   │   │   ├── state/        # ViewModel & UI State
-│   │   │   └── theme/        # Tema & Styling
-│   │   └── util/             # Helper utilities
-│   └── src/main/res/
+├── app/                     # Modul Android (Kotlin/Compose UI)
+│   ├── src/main/jniLibs/    # Shared library .so hasil build Rust (x86_64, arm64-v8a)
+│   ├── src/main/kotlin/     # Source code Kotlin & file bindings UniFFI (com/gaje48/lms/)
+│   └── src/main/res/        # Resource XML (Tema, Icon, Layout)
+├── lms-rust/                # Modul Rust (Scraping, HTTP reqwest, OCR solver)
+│   ├── src/                 # Source code Rust (lib.rs & generator uniffi-bindgen)
+│   ├── Cargo.toml           # Konfigurasi dependensi crate Rust
+│   └── build_andro.sh       # Bash script untuk cross-compile Rust & generate bindings Kotlin
 ├── gradle/
 ├── build.gradle.kts
 ├── settings.gradle.kts
 └── gradlew
 ```
 
-## Alur Aplikasi
+## Alur Kerja Aplikasi
 
-1. Pengguna login dengan NIM dan password LMS.
-2. Aplikasi mengambil halaman login, membaca captcha menggunakan ML Kit, lalu mencoba login otomatis.
-3. Setelah berhasil, aplikasi mem-parsing dashboard LMS untuk mengambil:
-   - data mahasiswa,
-   - daftar mata kuliah,
-   - daftar pertemuan,
-   - data presensi.
-4. Pengguna dapat membuka detail pertemuan, mengunduh materi, melihat tugas, upload jawaban, dan mengecek presensi.
+1. **Inisialisasi**: Aplikasi memeriksa status login via DataStore dan mendekripsi kredensial pengguna menggunakan Google Tink.
+2. **Login & Captcha**: Rust Backend meminta halaman login `lms.unindra.ac.id`, mengambil gambar captcha, menyelesaikannya melalui model OCR lokal, dan mengirimkan post request autentikasi ke server.
+3. **Scraping Data**: Setelah session terbentuk, modul Rust mem-parsing struktur HTML dashboard untuk mengekstrak profil mahasiswa, kelas aktif, materi, dan jadwal deadline tugas.
+4. **Penyimpanan Lokal**: Data hasil scraping di-commit ke Room DB agar pengguna dapat tetap melihat jadwal dan materi secara responsif meski offline.
+5. **Download/Upload**: Proses unduh materi dan unggah tugas diproses di level Rust, lalu mengirimkan progress update secara berkala melalui callback stream ke UI Jetpack Compose.
 
-## Persyaratan
+## Persyaratan Sistem
 
-- Android Studio versi terbaru (mendukung AGP 9.2+)
-- Android Gradle Plugin `9.2.0`
-- Kotlin `2.3.20`
-- JDK 17
-- Perangkat atau emulator Android dengan minimum SDK 29 (Android 10)
-- Koneksi internet untuk mengakses `https://lms.unindra.ac.id`
+- **Android Studio** versi terbaru (dengan AGP 9.2+)
+- **JDK 17**
+- **Rust Toolchain** (stable terbaru)
+- **Target Android NDK**: `rustup target add x86_64-linux-android aarch64-linux-android`
+- **NDK Compiler**: Android NDK dan tool `cargo-ndk` (`cargo install cargo-ndk`)
+- Perangkat Android dengan **minimum SDK 29** (Android 10)
 
-## Cara Menjalankan
+## Cara Menjalankan Proyek
 
-### 1. Clone repository
-
+### 1. Clone Repository
 ```bash
 git clone <url-repository>
 cd lms-unindra
 ```
 
-### 2. Buka di Android Studio
+### 2. Build Rust Library
+Sebelum membuka proyek di Android Studio, Anda wajib melakukan cross-compile modul Rust untuk men-generate binary `.so` dan file bindings Kotlin:
+```bash
+cd lms-rust
+chmod +x build_andro.sh
+./build_andro.sh
+cd ..
+```
+*Script ini akan menghasilkan file `.so` di `app/src/main/jniLibs` dan binding Kotlin di `app/src/main/kotlin/uniffi/lms_rust/lms_rust.kt`.*
 
-- Pilih `Open` lalu arahkan ke folder proyek ini.
-- Tunggu proses Gradle sync selesai.
-
-### 3. Jalankan aplikasi
-
-- Hubungkan perangkat Android atau jalankan emulator.
-- Klik tombol `Run` di Android Studio.
-
-Atau lewat terminal:
-
+### 3. Jalankan Aplikasi
+- Buka folder proyek utama (`lms-unindra`) di Android Studio.
+- Jalankan Gradle Sync.
+- Hubungkan device/emulator lalu klik **Run** atau jalankan perintah berikut lewat terminal:
 ```bash
 ./gradlew installDebug
 ```
 
 ## Build APK
 
-Untuk build debug:
-
+Untuk membuat build debug APK:
 ```bash
 ./gradlew assembleDebug
 ```
 
-Untuk build release:
-
+Untuk membuat build release APK:
 ```bash
 ./gradlew assembleRelease
 ```
 
-APK hasil build biasanya berada di:
-
+File APK hasil build dapat ditemukan di folder:
 ```text
 app/build/outputs/apk/
 ```
 
-## Permission yang Digunakan
+## Perizinan (Permissions) yang Diperlukan
 
-- `INTERNET` untuk komunikasi dengan LMS Unindra.
-- `POST_NOTIFICATIONS` untuk notifikasi progress download dan upload pada Android 13+.
+- **INTERNET**: Berkomunikasi langsung dengan server LMS Unindra (`lms.unindra.ac.id`).
+- **POST_NOTIFICATIONS**: Menampilkan progres unduhan materi kuliah dan unggahan tugas kuliah di Android 13+.
+- **SCHEDULE_EXACT_ALARM**: Memastikan sinkronisasi background berkala untuk mengecek tugas baru berjalan tepat waktu.
 
-## Catatan Implementasi
+## Catatan Penting Implementasi
 
-- Kredensial pengguna disimpan menggunakan `DataStore` yang dienkripsi dengan `Google Tink`.
-- Sesi login dipertahankan menggunakan `HttpCookies` plugin dari Ktor.
-- Data LMS diambil dengan pendekatan HTML scraping menggunakan Jsoup.
-- Auto-login akan mencoba ulang captcha hingga 3 kali.
-- Download file diarahkan ke folder khusus `Downloads/elemes`.
-- Beberapa endpoint LMS dipanggil secara langsung, sehingga perubahan struktur HTML atau endpoint dari pihak LMS dapat memengaruhi aplikasi.
+- **Cookie Management**: Sesi login dipertahankan di level library Rust menggunakan fitur Cookie Store bawaan `reqwest`.
+- **Captcha Retry**: Akan mencoba memecahkan captcha secara otomatis hingga berhasil login. Jika gagal, akan menampilkan pesan error.
+- **Lokasi Unduhan**: Pengunduhan materi diarahkan langsung ke folder publik `Downloads/sawit` pada penyimpanan internal perangkat Android.
+- **Risiko Scraping**: Karena aplikasi ini menggunakan pendekatan scraping HTML (DOM parsing), perubahan struktur visual atau pembaruan sistem pada situs resmi `lms.unindra.ac.id` sewaktu-waktu dapat memengaruhi fungsionalitas parser pada modul Rust.
 
 ## Disclaimer
 
-Proyek ini dibuat untuk mempermudah akses ke LMS Unindra dan **bukan aplikasi resmi** kampus. Gunakan secara bertanggung jawab, terutama karena aplikasi menyimpan sesi login dan berinteraksi langsung dengan layanan LMS.
-
-## Lisensi
-
-Belum ada file lisensi di repository ini. Jika proyek akan dipublikasikan, sebaiknya tambahkan lisensi yang sesuai.
+Proyek ini dibuat untuk mempermudah mahasiswa dalam mengakses portal `lms.unindra.ac.id` secara praktis di smartphone dan **bukan merupakan aplikasi resmi** dari pihak Universitas Indraprasta PGRI. Pengguna bertanggung jawab penuh atas kredensial yang disimpan di dalam perangkat masing-masing.

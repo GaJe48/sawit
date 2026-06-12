@@ -277,7 +277,7 @@ fun MeetingScreenStateless(
                                         interactionSource = launchWaInteraction,
                                     ) {
                                         Icon(
-                                            painterResource(R.drawable.wa),
+                                            painterResource(R.drawable.whatsapp),
                                             contentDescription = "Hubungi WhatsApp",
                                             modifier = Modifier.size(16.dp),
                                         )

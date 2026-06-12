@@ -53,7 +53,7 @@ class NotificationHelper(
     private fun updateGroupSummary() {
         Notification
             .Builder(context, CHANNEL_ID_DEFAULT)
-            .setSmallIcon(R.drawable.notification_icon)
+            .setSmallIcon(R.drawable.icon_notification)
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
             .also { notificationManager.notify(SUMMARY_ID, it.build()) }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Elemes.SplashScreen" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="postSplashScreenTheme">@style/Theme.AppCompat.NoActionBar</item>
+    <style name="Lms.Theme.SplashScreen" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/icon</item>
+        <item name="postSplashScreenTheme">@style/android:Theme.Material.NoActionBar</item>
     </style>
 </resources>

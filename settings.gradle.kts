@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "LMS Unindra"
+rootProject.name = "SAWIT"
 include(":app")

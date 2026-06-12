@@ -66,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gaje48.lms.model.AuthStatus
 import com.gaje48.lms.ui.components.FloatingBlobsBackground
 import com.gaje48.lms.ui.components.rememberPressedState
+import com.gaje48.lms.ui.theme.RighteousFontFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -111,8 +112,7 @@ fun LoginScreenStateless(
                         0f at 0
                         20f at 50
                         (-20f) at 100
-                        val rawOffset15 = 15f
-                        rawOffset15 at 150
+                        15f at 150
                         (-15f) at 200
                         10f at 250
                         (-10f) at 300
@@ -137,20 +137,20 @@ fun LoginScreenStateless(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = "LMS Unindra",
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Black,
+                    text = "SAWIT",
                     color = MaterialTheme.colorScheme.primary,
+                    fontFamily = RighteousFontFamily,
+                    letterSpacing = 2.sp,
+                    style = MaterialTheme.typography.displayLarge,
                 )
 
                 Spacer(Modifier.height(4.dp))
 
                 Text(
-                    text = "Portal Pembelajaran Masa Depan",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Sistem Akademik & Wahana Informasi Terpadu",
                     color = MaterialTheme.colorScheme.secondary,
-                    letterSpacing = 1.sp,
                     fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
                 )
 
                 Spacer(modifier = Modifier.height(48.dp))
