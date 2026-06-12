@@ -457,22 +457,18 @@ impl InternetDataSource {
             });
         }
 
-        let content_type_header = response
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok());
-
-        let ext = content_type_header
-            .and_then(|ct| {
-                let base_type = ct.split(';').next()?.trim_ascii();
-                mime_guess::get_mime_extensions_str(base_type)?.first()
-            })
+        let first_chunk = response
+            .chunk()
+            .await?
             .ok_or_else(|| LmsError::ParserError {
-                msg: match content_type_header {
-                    Some(ct) => format!("Unrecognized file format for Content-Type: '{}'", ct),
-                    None => "Missing Content-Type header in server response".to_string(),
-                },
+                msg: "Empty response body from server".to_string(),
             })?;
+
+        let ext = infer::get(&first_chunk)
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Could not determine file type from magic number".to_string(),
+            })?
+            .extension();
 
         let file_name = format!("{}.{}", raw_file_name, ext);
 
@@ -488,6 +484,19 @@ impl InternetDataSource {
         let mut tokio_file = tokio::fs::File::from_std(file);
 
         let mut downloaded = 0u64;
+
+        tokio_file
+            .write_all(&first_chunk)
+            .await
+            .map_err(|e| LmsError::StorageError {
+                msg: format!("Failed to write first file chunk to disk: {}", e),
+            })?;
+        downloaded += first_chunk.len() as u64;
+        if total_size > 0 {
+            let progress = downloaded as f32 / total_size as f32;
+            callback.on_progress(file_name.clone(), progress);
+        }
+
         while let Some(chunk) = response.chunk().await? {
             tokio_file
                 .write_all(&chunk)
@@ -1048,7 +1057,7 @@ impl InternetDataSource {
         const POSTFIX_NO_PIC_A: &str = "dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
 
         static MSG: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
+            LazyLock::new(|| Selector::parse("div[style='padding-left:15px']").unwrap());
         static QUESTION: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default a").unwrap());
         static DEADLINE: LazyLock<Selector> = LazyLock::new(|| {
@@ -1074,8 +1083,7 @@ impl InternetDataSource {
         let message = document
             .select(&MSG)
             .next()
-            .and_then(|el| el.text().next())
-            .map(String::from);
+            .map(|el| el.text().collect::<String>().replace("\n\n", "\n"));
 
         let question_url = document
             .select(&QUESTION)
