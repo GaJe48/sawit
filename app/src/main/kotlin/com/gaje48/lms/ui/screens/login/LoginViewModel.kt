@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 data class LoginUiState(
     val status: AuthStatus = AuthStatus.IDLE,
@@ -30,6 +31,10 @@ class LoginViewModel(
                 status = AuthStatus.IDLE,
             )
         }
+    }
+
+    fun resetError() {
+        _uiState.update { it.copy(errorMessage = null) }
     }
 
     fun manualLogin(
@@ -58,9 +63,43 @@ class LoginViewModel(
             }
 
             _uiState.update { it.copy(status = AuthStatus.SUCCESS) }
-            delay(500)
+            delay(500.milliseconds)
 
             authRepository.saveCredentials(nim, pwd)
+        }
+    }
+
+    fun requestResetPassword(email: String) {
+        _uiState.update {
+            it.copy(
+                status = AuthStatus.LOADING,
+                errorMessage = null,
+            )
+        }
+
+        viewModelScope.launch {
+            val result = authRepository.requestResetPassword(email)
+            result
+                .onSuccess {
+                    _uiState.update {
+                        it.copy(
+                            status = AuthStatus.SUCCESS,
+                        )
+                    }
+                }.onFailure { exception ->
+                    val friendlyMessage =
+                        when (exception) {
+                            is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah, silakan coba lagi"
+                            is uniffi.lms_rust.LmsException.EmailNotRegisteredException -> "Email Anda belum terdaftar"
+                            else -> exception.message ?: "Terjadi kesalahan saat memproses reset password"
+                        }
+                    _uiState.update {
+                        it.copy(
+                            status = AuthStatus.IDLE,
+                            errorMessage = friendlyMessage,
+                        )
+                    }
+                }
         }
     }
 }

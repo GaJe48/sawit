@@ -99,6 +99,8 @@ enum LmsError {
     CaptchaSolverError { msg: String },
     #[error("Parser error: {msg}")]
     ParserError { msg: String },
+    #[error("Email Anda belum terdaftar")]
+    EmailNotRegisteredError,
 }
 
 impl From<reqwest::Error> for LmsError {
@@ -146,7 +148,7 @@ impl InternetDataSource {
 
     async fn cookie_renewed(&self, nim: String, pwd: String) -> Result<(), LmsError> {
         static INPUT: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("[type=hidden]").unwrap());
+            LazyLock::new(|| Selector::parse("[type=hidden]:nth-child(2)").unwrap());
 
         let html = self
             .web
@@ -156,33 +158,14 @@ impl InternetDataSource {
             .text()
             .await?;
 
-        let (t_csrf, random_name, random_value) = {
-            let document = Html::parse_document(&html);
-
-            let mut inputs = document.select(&INPUT);
-
-            let t = inputs
-                .next()
-                .and_then(|el| el.attr("value"))
-                .ok_or_else(|| LmsError::ParserError {
-                    msg: "CSRF token hidden input field not found".to_string(),
-                })?
-                .to_string();
-
-            let (rn, rv) = inputs
-                .next()
-                .and_then(|el| {
-                    let rn = el.attr("name")?.to_string();
-                    let rv = el.attr("value")?.to_string();
-
-                    Some((rn, rv))
-                })
-                .ok_or_else(|| LmsError::ParserError {
-                    msg: "Random check hidden input field not found".to_string(),
-                })?;
-
-            (t, rn, rv)
-        };
+        let random_name = Html::parse_document(&html)
+            .select(&INPUT)
+            .next()
+            .and_then(|el| el.attr("name"))
+            .ok_or_else(|| LmsError::ParserError {
+                msg: "Random check hidden input field not found".to_string(),
+            })?
+            .to_string();
 
         let bytes = self
             .web
@@ -195,11 +178,10 @@ impl InternetDataSource {
         let kapca_answer = solve_captcha(bytes).await?.to_string();
 
         let form_data = [
-            ("csrf_token", t_csrf),
-            (&random_name, random_value),
             ("username", nim),
             ("pswd", pwd),
             ("kapca", kapca_answer),
+            (&random_name, "".to_string()),
         ];
 
         let response = self
@@ -215,6 +197,42 @@ impl InternetDataSource {
             return Err(LmsError::CredentialError);
         }
         if response.contains("Jawaban Captcha Salah") {
+            return Err(LmsError::CaptchaError);
+        }
+
+        Ok(())
+    }
+
+    async fn request_reset_password(&self, email: String) -> Result<(), LmsError> {
+        let bytes = self
+            .web
+            .get(format!("{}/kapca", self.base_url))
+            .send()
+            .await?
+            .bytes()
+            .await?;
+
+        let kapca_answer = solve_captcha(bytes).await?.to_string();
+
+        let _post_response = self
+            .web
+            .post(format!("{}/lupa_password/proses", self.base_url))
+            .form(&[("txt_email", email), ("kapca", kapca_answer)])
+            .send()
+            .await?;
+
+        let login_page_html = self
+            .web
+            .get(format!("{}/login_new", self.base_url))
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        if login_page_html.contains("Email Anda belum terdaftar") {
+            return Err(LmsError::EmailNotRegisteredError);
+        }
+        if login_page_html.contains("Jawaban Captcha Salah") {
             return Err(LmsError::CaptchaError);
         }
 
@@ -1057,7 +1075,7 @@ impl InternetDataSource {
         const POSTFIX_NO_PIC_A: &str = "dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
 
         static MSG: LazyLock<Selector> =
-            LazyLock::new(|| Selector::parse("div[style='padding-left:15px']").unwrap());
+            LazyLock::new(|| Selector::parse("[style='padding-left:15px']").unwrap());
         static QUESTION: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default a").unwrap());
         static DEADLINE: LazyLock<Selector> = LazyLock::new(|| {

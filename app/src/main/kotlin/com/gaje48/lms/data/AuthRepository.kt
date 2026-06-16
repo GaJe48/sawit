@@ -2,7 +2,6 @@ package com.gaje48.lms.data
 
 import com.gaje48.lms.data.db.CourseDao
 import com.gaje48.lms.data.db.StudentDao
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 class AuthRepository(
@@ -11,7 +10,7 @@ class AuthRepository(
     private val studentDao: StudentDao,
     private val courseDao: CourseDao,
 ) {
-    val isLoggedIn: Flow<Boolean> = localDataSource.credentials.map { it != null }
+    val isLoggedIn = localDataSource.credentials.map { it != null }
 
     suspend fun savedCredential() = localDataSource.getCredentials()
 
@@ -34,6 +33,8 @@ class AuthRepository(
         nim: String,
         pwd: String,
     ) = runCatching { internetDataSource.cookieRenewed(nim, pwd) }
+
+    suspend fun requestResetPassword(email: String) = runCatching { internetDataSource.requestResetPassword(email) }
 
     suspend fun saveCredentials(
         nim: String,

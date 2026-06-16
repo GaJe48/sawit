@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -37,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -47,9 +49,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +74,7 @@ import com.gaje48.lms.ui.theme.RighteousFontFamily
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LoginScreen(viewModel: LoginViewModel) {
@@ -79,6 +84,8 @@ fun LoginScreen(viewModel: LoginViewModel) {
         status = uiState.status,
         errorMessage = uiState.errorMessage,
         onLoginClick = { nim, password -> viewModel.manualLogin(nim, password) },
+        onResetPasswordClick = { email -> viewModel.requestResetPassword(email) },
+        onResetStatus = { viewModel.resetError() },
     )
 }
 
@@ -87,19 +94,79 @@ fun LoginScreenStateless(
     status: AuthStatus,
     errorMessage: String?,
     onLoginClick: (String, String) -> Unit,
+    onResetPasswordClick: (String) -> Unit,
+    onResetStatus: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    var isResetMode by rememberSaveable { mutableStateOf(false) }
     var nim by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+
+    val isEmailValid =
+        remember(email) {
+            email.isEmpty() ||
+                android.util.Patterns.EMAIL_ADDRESS
+                    .matcher(email)
+                    .matches()
+        }
+
+    val isNimValid =
+        remember(nim) {
+            nim.isEmpty() || nim.length >= 12
+        }
+
+    val modeToggleButton: @Composable (text: String) -> Unit = { text ->
+        val interactionSource = remember { MutableInteractionSource() }
+        val isPressed by rememberPressedState(interactionSource)
+        val buttonScale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "modeButtonScale")
+
+        val isButtonEnabled = status == AuthStatus.IDLE
+
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    delay(150.milliseconds)
+                    isResetMode = !isResetMode
+                    onResetStatus()
+                }
+            },
+            modifier =
+                Modifier.fillMaxWidth().graphicsLayer {
+                    scaleX = buttonScale
+                    scaleY = buttonScale
+                },
+            enabled = isButtonEnabled,
+            shape = RoundedCornerShape(16.dp),
+            colors =
+                ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    disabledContentColor = MaterialTheme.colorScheme.primary.copy(0.2f),
+                ),
+            border =
+                BorderStroke(
+                    width = 2.dp,
+                    color =
+                        if (isButtonEnabled) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.primary.copy(0.2f)
+                        },
+                ),
+            interactionSource = interactionSource,
+        ) {
+            Text(
+                text = text,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
 
     val passwordVisibilityInteraction = remember { MutableInteractionSource() }
     val isPasswordVisible by passwordVisibilityInteraction.collectIsPressedAsState()
-
-    val interaction = remember { MutableInteractionSource() }
-    val isPressed by rememberPressedState(interaction)
-    val buttonScale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "buttonScale")
 
     val shakeOffset = remember { Animatable(0f) }
     LaunchedEffect(errorMessage) {
@@ -122,7 +189,7 @@ fun LoginScreenStateless(
             )
         }
 
-        if (errorMessage == "NIM atau Password salah") {
+        if (errorMessage == "NIM atau Password salah" || errorMessage == "Email Anda belum terdaftar") {
             keyboardController?.show()
         }
     }
@@ -144,8 +211,6 @@ fun LoginScreenStateless(
                     style = MaterialTheme.typography.displayLarge,
                 )
 
-                Spacer(Modifier.height(4.dp))
-
                 Text(
                     text = "Sistem Akademik & Wahana Informasi Terpadu",
                     color = MaterialTheme.colorScheme.secondary,
@@ -153,215 +218,393 @@ fun LoginScreenStateless(
                     style = MaterialTheme.typography.titleMedium,
                 )
 
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(Modifier.height(40.dp))
 
                 Card(
-                    shape = RoundedCornerShape(32.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors =
                         CardDefaults.cardColors(
-                            containerColor =
-                                MaterialTheme.colorScheme.surface.copy(
-                                    alpha = 0.4f,
-                                ),
+                            containerColor = MaterialTheme.colorScheme.surface.copy(0.4f),
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                         ),
-                    border =
-                        BorderStroke(
-                            1.dp,
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                        ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
                 ) {
-                    Column(modifier = Modifier.padding(32.dp)) {
-                        Text(
-                            text = "Selamat Datang",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-
-                        Spacer(Modifier.height(20.dp))
-
-                        OutlinedTextField(
-                            value = nim,
-                            onValueChange = { input ->
-                                if (input.all { it.isDigit() }) nim = input
-                            },
-                            label = { Text("NIM Mahasiswa") },
-                            keyboardOptions =
-                                KeyboardOptions(
-                                    keyboardType = KeyboardType.Number,
-                                    imeAction = ImeAction.Next,
-                                ),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Person,
-                                    contentDescription = "Ikon NIM",
+                    AnimatedContent(targetState = isResetMode, label = "cardContentTransition") { currentIsReset ->
+                        Column(modifier = Modifier.padding(32.dp)) {
+                            if (!currentIsReset) {
+                                Text(
+                                    text = "Selamat Datang",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    style = MaterialTheme.typography.headlineSmall,
                                 )
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            colors =
-                                OutlinedTextFieldDefaults.colors(
-                                    unfocusedBorderColor =
-                                        MaterialTheme.colorScheme.onSurface.copy(
-                                            alpha = 0.2f,
+
+                                Spacer(Modifier.height(10.dp))
+
+                                OutlinedTextField(
+                                    value = nim,
+                                    onValueChange = { input -> if (input.all { it.isDigit() }) nim = input },
+                                    label = { Text("NIM Mahasiswa") },
+                                    isError = !isNimValid,
+                                    supportingText =
+                                        if (!isNimValid) {
+                                            {
+                                                Text(
+                                                    text = "NIM harus minimal 12 digit",
+                                                    color = MaterialTheme.colorScheme.error,
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                    keyboardOptions =
+                                        KeyboardOptions(
+                                            keyboardType = KeyboardType.Number,
+                                            imeAction = ImeAction.Next,
                                         ),
-                                    focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
-                                ),
-                        )
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    leadingIcon = { Icon(Icons.Default.Person, "Ikon NIM") },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors =
+                                        OutlinedTextFieldDefaults.colors(
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.2f),
+                                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                                        ),
+                                )
 
-                        Spacer(Modifier.height(20.dp))
+                                Spacer(Modifier.height(10.dp))
 
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = { Text("Password Portal") },
-                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            keyboardOptions =
-                                KeyboardOptions(
-                                    keyboardType = KeyboardType.Password,
-                                    imeAction = ImeAction.Done,
-                                ),
-                            keyboardActions =
-                                KeyboardActions(
-                                    onDone = {
-                                        keyboardController?.hide()
+                                OutlinedTextField(
+                                    value = password,
+                                    onValueChange = { password = it },
+                                    label = { Text("Password Portal") },
+                                    visualTransformation =
+                                        if (isPasswordVisible) {
+                                            VisualTransformation.None
+                                        } else {
+                                            PasswordVisualTransformation()
+                                        },
+                                    keyboardOptions =
+                                        KeyboardOptions(
+                                            keyboardType = KeyboardType.Password,
+                                            imeAction = ImeAction.Done,
+                                        ),
+                                    keyboardActions =
+                                        KeyboardActions(
+                                            onDone = {
+                                                keyboardController?.hide()
 
-                                        if (status == AuthStatus.IDLE && nim.isNotEmpty() && password.isNotEmpty()) {
-                                            onLoginClick(nim, password)
+                                                if (status == AuthStatus.IDLE && nim.isNotEmpty() && isNimValid && password.isNotEmpty()) {
+                                                    onLoginClick(nim, password)
+                                                }
+                                            },
+                                        ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    leadingIcon = { Icon(Icons.Default.Lock, "Ikon Password") },
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = { },
+                                            interactionSource = passwordVisibilityInteraction,
+                                        ) {
+                                            Icon(
+                                                imageVector =
+                                                    if (isPasswordVisible) {
+                                                        Icons.Default.Visibility
+                                                    } else {
+                                                        Icons.Default.VisibilityOff
+                                                    },
+                                                contentDescription = "Tahan untuk melihat password",
+                                            )
                                         }
                                     },
-                                ),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = "Ikon Password",
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors =
+                                        OutlinedTextFieldDefaults.colors(
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.2f),
+                                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                                        ),
                                 )
-                            },
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = { },
-                                    interactionSource = passwordVisibilityInteraction,
-                                ) {
-                                    Icon(
-                                        imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                        contentDescription = "Tahan untuk melihat password",
-                                    )
-                                }
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            colors =
-                                OutlinedTextFieldDefaults.colors(
-                                    unfocusedBorderColor =
-                                        MaterialTheme.colorScheme.onSurface.copy(
-                                            alpha = 0.2f,
-                                        ),
-                                    focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
-                                ),
-                        )
 
-                        Spacer(Modifier.height(15.dp))
+                                Spacer(Modifier.height(10.dp))
 
-                        AnimatedVisibility(visible = errorMessage != null) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                border =
-                                    BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.error.copy(alpha = 0.2f),
-                                    ),
-                            ) {
-                                Text(
-                                    text = errorMessage.orEmpty(),
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(12.dp),
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(15.dp))
-
-                        Button(
-                            onClick = {
-                                keyboardController?.hide()
-
-                                scope.launch {
-                                    delay(150)
-                                    onLoginClick(nim, password)
-                                }
-                            },
-                            modifier =
-                                Modifier.fillMaxWidth().height(56.dp).graphicsLayer {
-                                    scaleX = buttonScale
-                                    scaleY = buttonScale
-                                },
-                            interactionSource = interaction,
-                            enabled = status == AuthStatus.IDLE && nim.isNotEmpty() && password.isNotEmpty(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors =
-                                ButtonDefaults.buttonColors(
-                                    disabledContainerColor =
-                                        MaterialTheme.colorScheme.primary.copy(
-                                            alpha = 0.3f,
-                                        ),
-                                    disabledContentColor =
-                                        MaterialTheme.colorScheme.onPrimary.copy(
-                                            alpha = 0.6f,
-                                        ),
-                                ),
-                        ) {
-                            AnimatedContent(
-                                targetState = status,
-                                label = "LoginButtonStateAnimation",
-                            ) { currentState ->
-                                when (currentState) {
-                                    AuthStatus.LOADING -> {
-                                        Row {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(20.dp),
-                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                strokeWidth = 2.5.dp,
-                                            )
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text(
-                                                text = "Memproses Keamanan...",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp,
-                                            )
-                                        }
-                                    }
-
-                                    AuthStatus.SUCCESS -> {
-                                        Row {
-                                            Icon(
-                                                imageVector = Icons.Default.CheckCircle,
-                                                contentDescription = "Sukses",
-                                                modifier = Modifier.size(22.dp),
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                text = "Berhasil Masuk!",
-                                                fontWeight = FontWeight.Black,
-                                                fontSize = 16.sp,
-                                            )
-                                        }
-                                    }
-
-                                    AuthStatus.IDLE -> {
+                                AnimatedVisibility(errorMessage != null) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.errorContainer.copy(0.2f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(0.2f)),
+                                    ) {
                                         Text(
-                                            text = "Masuk Portal",
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = 16.sp,
+                                            text = errorMessage.orEmpty(),
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(12.dp),
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
                                         )
                                     }
                                 }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                val interaction = remember { MutableInteractionSource() }
+                                val isPressed by rememberPressedState(interaction)
+                                val buttonScale by animateFloatAsState(if (isPressed) 0.95f else 1f, label = "buttonScale")
+
+                                Button(
+                                    onClick = {
+                                        keyboardController?.hide()
+
+                                        scope.launch {
+                                            delay(150.milliseconds)
+                                            onLoginClick(nim, password)
+                                        }
+                                    },
+                                    modifier =
+                                        Modifier.fillMaxWidth().height(56.dp).graphicsLayer {
+                                            scaleX = buttonScale
+                                            scaleY = buttonScale
+                                        },
+                                    interactionSource = interaction,
+                                    enabled = status == AuthStatus.IDLE && nim.isNotEmpty() && isNimValid && password.isNotEmpty(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors =
+                                        ButtonDefaults.buttonColors(
+                                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(0.3f),
+                                            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(0.6f),
+                                        ),
+                                ) {
+                                    AnimatedContent(
+                                        targetState = status,
+                                        label = "LoginButtonStateAnimation",
+                                    ) { currentState ->
+                                        when (currentState) {
+                                            AuthStatus.LOADING -> {
+                                                Row {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(20.dp),
+                                                        color = MaterialTheme.colorScheme.onPrimary,
+                                                        strokeWidth = 2.5.dp,
+                                                    )
+                                                    Spacer(Modifier.width(12.dp))
+                                                    Text(
+                                                        text = "Memproses Keamanan...",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 16.sp,
+                                                    )
+                                                }
+                                            }
+
+                                            AuthStatus.SUCCESS -> {
+                                                Row {
+                                                    Icon(
+                                                        imageVector = Icons.Default.CheckCircle,
+                                                        contentDescription = "Sukses",
+                                                        modifier = Modifier.size(22.dp),
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(
+                                                        text = "Berhasil Masuk!",
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                    )
+                                                }
+                                            }
+
+                                            AuthStatus.IDLE -> {
+                                                Text(
+                                                    text = "Masuk Portal",
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                modeToggleButton("Lupa Kata Sandi?")
+                            } else {
+                                Text(
+                                    text = "Lupa Kata Sandi",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                )
+
+                                Spacer(Modifier.height(10.dp))
+
+                                Text(
+                                    text = "Masukkan alamat email yang terdaftar untuk menerima tautan pemulihan kata sandi.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 20.sp,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+
+                                Spacer(Modifier.height(10.dp))
+
+                                OutlinedTextField(
+                                    value = email,
+                                    onValueChange = { email = it },
+                                    label = { Text("Email") },
+                                    isError = !isEmailValid,
+                                    supportingText =
+                                        if (!isEmailValid) {
+                                            {
+                                                Text(
+                                                    text = "Format email tidak valid",
+                                                    color = MaterialTheme.colorScheme.error,
+                                                )
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    keyboardActions =
+                                        KeyboardActions(
+                                            onDone = {
+                                                keyboardController?.hide()
+
+                                                if (status == AuthStatus.IDLE && email.isNotEmpty() && isEmailValid) {
+                                                    onResetPasswordClick(email)
+                                                }
+                                            },
+                                        ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    leadingIcon = { Icon(Icons.Default.Email, "Ikon Email") },
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors =
+                                        OutlinedTextFieldDefaults.colors(
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(0.2f),
+                                            focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+                                        ),
+                                )
+
+                                Spacer(Modifier.height(10.dp))
+
+                                AnimatedVisibility(errorMessage != null) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.errorContainer.copy(0.2f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(0.2f)),
+                                    ) {
+                                        Text(
+                                            text = errorMessage.orEmpty(),
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.padding(12.dp),
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+
+                                AnimatedVisibility(visible = status == AuthStatus.SUCCESS) {
+                                    Surface(
+                                        color = Color(0xFFE6F4EA).copy(0.2f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        border = BorderStroke(1.dp, Color(0xFF137333).copy(0.3f)),
+                                    ) {
+                                        Text(
+                                            text = "Tautan/proses pemulihan kata sandi telah dikirim. Silakan cek email Gmail Anda.",
+                                            color = Color(0xFF137333),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(12.dp),
+                                            fontWeight = FontWeight.Bold,
+                                            textAlign = TextAlign.Center,
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                val resetInteraction = remember { MutableInteractionSource() }
+                                val isResetPressed by rememberPressedState(resetInteraction)
+                                val resetBtnScale by animateFloatAsState(
+                                    targetValue = if (isResetPressed) 0.95f else 1f,
+                                    label = "resetBtnScale",
+                                )
+
+                                Button(
+                                    onClick = {
+                                        keyboardController?.hide()
+                                        scope.launch {
+                                            delay(150.milliseconds)
+                                            onResetPasswordClick(email)
+                                        }
+                                    },
+                                    modifier =
+                                        Modifier.fillMaxWidth().height(56.dp).graphicsLayer {
+                                            scaleX = resetBtnScale
+                                            scaleY = resetBtnScale
+                                        },
+                                    interactionSource = resetInteraction,
+                                    enabled = status == AuthStatus.IDLE && email.isNotEmpty() && isEmailValid,
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors =
+                                        ButtonDefaults.buttonColors(
+                                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(0.3f),
+                                            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(0.6f),
+                                        ),
+                                ) {
+                                    AnimatedContent(
+                                        targetState = status,
+                                        label = "ResetButtonStateAnimation",
+                                    ) { currentState ->
+                                        when (currentState) {
+                                            AuthStatus.LOADING -> {
+                                                Row {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(20.dp),
+                                                        color = MaterialTheme.colorScheme.onPrimary,
+                                                        strokeWidth = 2.5.dp,
+                                                    )
+                                                    Spacer(modifier = Modifier.width(12.dp))
+                                                    Text(
+                                                        text = "Mengirim Permintaan...",
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                    )
+                                                }
+                                            }
+
+                                            AuthStatus.SUCCESS -> {
+                                                Row {
+                                                    Icon(
+                                                        imageVector = Icons.Default.CheckCircle,
+                                                        contentDescription = "Sukses",
+                                                        modifier = Modifier.size(22.dp),
+                                                        tint = Color(0xFF137333),
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = "Tautan Dikirim!",
+                                                        color = Color(0xFF137333),
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                    )
+                                                }
+                                            }
+
+                                            AuthStatus.IDLE -> {
+                                                Text(
+                                                    text = "Kirim Link Reset",
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(Modifier.height(10.dp))
+
+                                modeToggleButton("Kembali ke Halaman Login")
                             }
                         }
                     }
@@ -378,5 +621,7 @@ fun PreviewLoginScreen() {
         status = AuthStatus.IDLE,
         errorMessage = null,
         onLoginClick = { _, _ -> },
+        onResetPasswordClick = { },
+        onResetStatus = { },
     )
 }
