@@ -76,6 +76,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 
 @Preview
 @Composable
@@ -115,6 +116,7 @@ fun PreviewDashboardScreen() {
         student = dummyProfile,
         courses = dummyList,
         allAttendances = dummyAttend,
+        lastSyncText = "Terakhir sinkron: 15 Jun, 16:55",
         onCourseClick = { },
         onAttendanceClick = { },
         onAssignmentClick = { },
@@ -135,6 +137,7 @@ fun DashboardScreen(
         student = uiState.student ?: return,
         courses = uiState.courses,
         allAttendances = uiState.allPresences,
+        lastSyncText = uiState.lastSyncText,
         onCourseClick = onCourseClick,
         onAttendanceClick = onAttendanceClick,
         onAssignmentClick = onAssignmentClick,
@@ -152,6 +155,7 @@ fun DashboardScreenStateless(
     student: Student,
     courses: List<Course>,
     allAttendances: List<AttendancesByCourse>,
+    lastSyncText: String,
     onCourseClick: (String) -> Unit,
     onAttendanceClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
@@ -195,7 +199,7 @@ fun DashboardScreenStateless(
                     Button(
                         onClick = {
                             scope.launch {
-                                delay(150)
+                                delay(150.milliseconds)
                                 onLogout()
                             }
                         },
@@ -224,7 +228,7 @@ fun DashboardScreenStateless(
                     Button(
                         onClick = {
                             scope.launch {
-                                delay(150)
+                                delay(150.milliseconds)
                                 showLogoutDialog = false
                             }
                         },
@@ -275,11 +279,27 @@ fun DashboardScreenStateless(
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                             )
-                            Text(
-                                text = "Selamat datang kembali",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .size(6.dp)
+                                            .background(
+                                                color = if (lastSyncText != "Belum pernah sinkron") Color(0xFF10B981) else Color.Gray,
+                                                shape = CircleShape,
+                                            ),
+                                )
+                                Text(
+                                    text = lastSyncText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     },
                     actions = {
@@ -293,7 +313,7 @@ fun DashboardScreenStateless(
                         Button(
                             onClick = {
                                 scope.launch {
-                                    delay(150)
+                                    delay(150.milliseconds)
                                     showLogoutDialog = true
                                 }
                             },
@@ -466,7 +486,7 @@ fun CourseCard(
     Card(
         onClick = {
             scope.launch {
-                delay(150)
+                delay(150.milliseconds)
                 onCourseClick(course.courseCode)
             }
         },
@@ -559,7 +579,7 @@ fun CourseCard(
                 Button(
                     onClick = {
                         scope.launch {
-                            delay(150)
+                            delay(150.milliseconds)
                             onAttendanceClick(course.courseCode)
                         }
                     },
@@ -585,7 +605,7 @@ fun CourseCard(
                 Button(
                     onClick = {
                         scope.launch {
-                            delay(150)
+                            delay(150.milliseconds)
                             onAssignmentClick(course.courseCode)
                         }
                     },

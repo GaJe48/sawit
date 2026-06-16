@@ -13,11 +13,16 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 data class DashboardUiState(
     val student: Student? = null,
     val courses: List<Course> = emptyList(),
     val allPresences: List<AttendancesByCourse> = emptyList(),
+    val lastSyncText: String = "Belum pernah sinkron",
 )
 
 class DashboardViewModel(
@@ -32,11 +37,13 @@ class DashboardViewModel(
             lmsRepository.student,
             lmsRepository.courses,
             lmsRepository.allAttendances,
-        ) { student, courses, attendances ->
+            lmsRepository.lastSyncTime,
+        ) { student, courses, attendances, lastSyncTime ->
             DashboardUiState(
                 student = student,
                 courses = courses,
                 allPresences = attendances,
+                lastSyncText = formatLastSyncTime(lastSyncTime),
             )
         }.stateIn(
             scope = viewModelScope,
@@ -45,6 +52,13 @@ class DashboardViewModel(
         )
 
     fun logout() {
-        viewModelScope.launch { authRepository.clearCredential() }
+        viewModelScope.launch { authRepository.logout() }
+    }
+
+    private fun formatLastSyncTime(timestamp: Long): String {
+        if (timestamp == 0L) return "Belum pernah sinkron"
+        val dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toLocalDateTime()
+        val formatter = DateTimeFormatter.ofPattern("dd MMM, HH:mm", Locale.forLanguageTag("id-ID"))
+        return "Terakhir sinkron: ${dateTime.format(formatter)}"
     }
 }

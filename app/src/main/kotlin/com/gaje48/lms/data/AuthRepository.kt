@@ -14,8 +14,9 @@ class AuthRepository(
 
     suspend fun savedCredential() = localDataSource.getCredentials()
 
-    suspend fun clearCredential() {
+    suspend fun logout() {
         localDataSource.clearCredentials()
+        localDataSource.clearLastSyncTime()
         studentDao.clear()
         courseDao.clearAll()
     }
@@ -25,7 +26,7 @@ class AuthRepository(
         pwd: String,
     ) = runCatching { internetDataSource.cookieRenewed(nim, pwd) }.onFailure { exception ->
         if (exception is uniffi.lms_rust.LmsException.CredentialException) {
-            clearCredential()
+            logout()
         }
     }
 

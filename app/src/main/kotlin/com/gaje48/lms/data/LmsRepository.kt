@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 
 class LmsRepository(
     private val authRepository: AuthRepository,
+    private val localDataSource: LocalDataSource,
     private val internetDataSource: uniffi.lms_rust.InternetDataSource,
     private val storageDataSource: StorageDataSource,
     private val lmsDatabase: LmsDatabase,
@@ -64,18 +65,25 @@ class LmsRepository(
             internetDataSource.cookieRenewed(credentials.first, credentials.second)
             return block()
         } catch (e: uniffi.lms_rust.LmsException.CredentialException) {
-            authRepository.clearCredential()
+            authRepository.logout()
             throw e
         }
     }
 
-    suspend fun login() = runCatching { syncLmsApp() }
+    suspend fun login() =
+        runCatching { syncLmsApp() }.onSuccess {
+            localDataSource.saveLastSyncTime(System.currentTimeMillis())
+        }
+
+    val lastSyncTime = localDataSource.lastSyncTime
 
     suspend fun syncAll() =
         runCatching {
             runAuthenticated {
                 syncLmsApp()
             }
+        }.onSuccess {
+            localDataSource.saveLastSyncTime(System.currentTimeMillis())
         }
 
     private suspend fun syncLmsApp() =

@@ -3,6 +3,7 @@ package com.gaje48.lms.data
 import android.content.Context
 import android.util.Base64
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.crypto.tink.Aead
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.map
 import java.nio.charset.StandardCharsets
 
 private val Context.credentialsDataStore by preferencesDataStore(name = "secure_credentials")
+private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 
 class LocalDataSource(
     private val context: Context,
@@ -31,6 +33,25 @@ class LocalDataSource(
     private object Keys {
         val nim = stringPreferencesKey("nim")
         val password = stringPreferencesKey("password_cipher")
+        val lastSyncTime = longPreferencesKey("last_sync_time")
+    }
+
+    val lastSyncTime: Flow<Long> =
+        context.settingsDataStore.data
+            .map { preferences ->
+                preferences[Keys.lastSyncTime] ?: 0L
+            }
+
+    suspend fun saveLastSyncTime(timeMillis: Long) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.lastSyncTime] = timeMillis
+        }
+    }
+
+    suspend fun clearLastSyncTime() {
+        context.settingsDataStore.edit { preferences ->
+            preferences[Keys.lastSyncTime] = 0L
+        }
     }
 
     private val aead: Aead by lazy {
