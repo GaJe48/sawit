@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.koin.compiler)
     alias(libs.plugins.google.devtools.ksp)
     alias(libs.plugins.ktlint)
 }
@@ -88,8 +87,4 @@ dependencies {
 ktlint {
     android.set(true)
     ignoreFailures.set(true)
-}
-
-koinCompiler {
-    compileSafety = false
 }
