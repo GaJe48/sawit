@@ -656,7 +656,8 @@ impl InternetDataSource {
     }
 
     fn parse_student(dashboard_html: &Html) -> Result<Student, LmsError> {
-        const NO_PIC_Z: &str = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/VHZRamltem9HandlcEJsVFg0bkhkNk1UbEJtaHZRSk5qeHV2QzZsRW1qVnlKaExrU0tGcGl3dm5QWkJ1RzI5UXorWU5nNThkMEJrT01JUDBNZkhLSGlTT0lGT0xybmtidXRtaDJqWU5xK0J4WEpPL2pINzVwSk5kOGF6ZnFXSmg3Ny9seVkyY0NCZkcvYnlZUXlaNm5BPT0=";
+        const PREFIX_NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNV";
 
         static NAME: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".user-header p").unwrap());
@@ -716,7 +717,7 @@ impl InternetDataSource {
                     .select(&IMG)
                     .next()
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| !url.contains(NO_PIC_Z))
+                    .filter(|url| *url != NO_PIC && !url.starts_with(PREFIX_NO_PIC))
                     .map(String::from)
             });
 
@@ -730,8 +731,8 @@ impl InternetDataSource {
     }
 
     fn parse_courses(dashboard_html: &Html) -> Result<Vec<Course>, LmsError> {
-        const NO_PIC: &str = "UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
-        const NO_PIC_Z: &str = "Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNVTUvUVVyMngwNzVhdExrbTM1Vjl4b";
+        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
+        const PREFIX_NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNV";
 
         static CARD: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".box-widget").unwrap());
         static LECTURER: LazyLock<Selector> = LazyLock::new(|| Selector::parse("h3").unwrap());
@@ -764,7 +765,7 @@ impl InternetDataSource {
                     .select(&IMG)
                     .next()
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| !url.ends_with(NO_PIC) && !url.contains(NO_PIC_Z))
+                    .filter(|url| *url != NO_PIC && !url.starts_with(PREFIX_NO_PIC))
                     .map(String::from);
 
                 let mut spans = el.select(&INFO);
@@ -1074,7 +1075,8 @@ impl InternetDataSource {
         fk_meeting_url: String,
         pk_assignment_url: String,
     ) -> Result<(AssignmentEntity, Option<(String, String)>), LmsError> {
-        const POSTFIX_NO_PIC_A: &str = "dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
+        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
+        const NO_PIC_A: &str = "https://lms.unindra.ac.id/media_public/get_gambar/VFl2UHArM0oySXQ3ZlMwWWxtTkNJcjFOUHJockVCanl1dXQ0MmRoeG80dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
 
         static MSG: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("[style='padding-left:15px']").unwrap());
@@ -1137,7 +1139,7 @@ impl InternetDataSource {
             .select(&IMAGE)
             .next()
             .and_then(|el| el.attr("src"))
-            .filter(|url| !url.ends_with(POSTFIX_NO_PIC_A))
+            .filter(|url| *url != NO_PIC && *url != NO_PIC_A)
             .map(String::from);
 
         let lecturer_key_value = name.zip(profile_picture_url);
