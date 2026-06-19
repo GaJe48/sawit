@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.model.AssignmentScreenData
 import com.gaje48.lms.util.NotificationHelper
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -22,6 +23,7 @@ class AssignmentViewModel(
     private val courseCode: String,
     private val lmsRepository: LmsRepository,
     private val notificationHelper: NotificationHelper,
+    private val externalScope: CoroutineScope,
 ) : ViewModel() {
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
@@ -46,9 +48,18 @@ class AssignmentViewModel(
         assignmentUrl: String,
     ) {
         val notifId = System.currentTimeMillis().toInt()
+        val meetingUrl =
+            uiState.value.assignmentScreenDatas
+                .firstOrNull()
+                ?.meetingUrl
+        if (meetingUrl == null) {
+            _snackbarEvent.trySend("Data pertemuan tidak ditemukan")
+            return
+        }
+
         notificationHelper.showUploadStarted(notifId)
 
-        viewModelScope.launch {
+        externalScope.launch {
             val fileName =
                 lmsRepository
                     .uploadSubmission(uri, assignmentUrl) { name, progress ->
@@ -62,15 +73,6 @@ class AssignmentViewModel(
                     }
 
             notificationHelper.showUploadCompleting(notifId, fileName)
-
-            val meetingUrl =
-                uiState.value.assignmentScreenDatas
-                    .firstOrNull()
-                    ?.meetingUrl
-            if (meetingUrl == null) {
-                _snackbarEvent.trySend("Data pertemuan tidak ditemukan")
-                return@launch
-            }
 
             lmsRepository
                 .syncAssignment(assignmentUrl, meetingUrl)
@@ -98,7 +100,7 @@ class AssignmentViewModel(
 
         notificationHelper.showDownloadStarted(notifId)
 
-        viewModelScope.launch {
+        externalScope.launch {
             val downloadedFileName =
                 lmsRepository
                     .downloadFile(fileUrl, rawFileName) { name, progress ->

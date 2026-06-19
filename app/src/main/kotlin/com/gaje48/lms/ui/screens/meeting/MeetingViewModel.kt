@@ -6,6 +6,7 @@ import com.gaje48.lms.data.LmsRepository
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Meeting
 import com.gaje48.lms.util.NotificationHelper
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -24,6 +25,7 @@ class MeetingViewModel(
     private val courseCode: String,
     private val lmsRepository: LmsRepository,
     private val notificationHelper: NotificationHelper,
+    private val externalScope: CoroutineScope,
 ) : ViewModel() {
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
@@ -60,7 +62,7 @@ class MeetingViewModel(
         val notifId = System.currentTimeMillis().toInt()
         notificationHelper.showDownloadStarted(notifId)
 
-        viewModelScope.launch {
+        externalScope.launch {
             val contentVmDatas = lmsRepository.observeContentVmDatas(meetingUrl).first()
             val contentVmData = contentVmDatas.find { it.contentUrl == fileUrl }
             if (contentVmData == null) {
