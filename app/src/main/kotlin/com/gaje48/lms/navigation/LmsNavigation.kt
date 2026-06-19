@@ -1,13 +1,11 @@
 package com.gaje48.lms.navigation
 
 import android.Manifest
-import android.app.Activity
-import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,7 +32,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -50,7 +47,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,8 +60,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -100,154 +97,75 @@ import org.koin.core.parameter.parametersOf
 @Composable
 fun LmsApp(mainViewModel: MainViewModel) {
     val context = LocalContext.current
-    val activity = context as? Activity
-    val lifecycleOwner = LocalLifecycleOwner.current
 
     var hasNotif by remember { mutableStateOf(true) }
-    var hasAlarm by remember { mutableStateOf(true) }
-    var canRequestNotif by remember { mutableStateOf(true) }
-    var showBlocker by remember { mutableStateOf(false) }
+    var hasBatteryOpt by remember { mutableStateOf(true) }
 
-    val checkPerms = {
-        val notif = isNotifGranted(context)
-        val alarm = isAlarmGranted(context)
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
-        hasNotif = notif
-        hasAlarm = alarm
-        canRequestNotif = canRequestNotif(activity)
-        showBlocker = !notif || !alarm
-    }
-
-    val launcher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-            checkPerms()
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer =
-            LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) {
-                    checkPerms()
-                }
-            }
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val isLoggedIn by mainViewModel.isLoggedIn.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        hasNotif = isNotifGranted(context)
+        hasBatteryOpt = isIgnoreBattery(context)
+
+        onPauseOrDispose { }
+    }
 
     LMSUnindraTheme {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            LmsAppContent(
-                isLoggedIn = isLoggedIn,
-                mainViewModel = mainViewModel,
-            )
+            LmsAppContent(mainViewModel = mainViewModel)
 
-            if (showBlocker) {
+            if (!hasNotif || !hasBatteryOpt) {
                 BlockerDialog(
                     onNotif = {
-                        if (canRequestNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            val intent =
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                }
-
-                            context.startActivity(intent)
-                        }
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }.also {
+                                context.startActivity(it)
+                            }
                     },
-                    onAlarm = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            val intent =
-                                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                    data = Uri.fromParts("package", context.packageName, null)
-                                }
-
-                            context.startActivity(intent)
-                        }
+                    onBatteryOpt = {
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                            .apply {
+                                data = "package:${context.packageName}".toUri()
+                            }.also {
+                                context.startActivity(it)
+                            }
                     },
                     hasNotif = hasNotif,
-                    hasAlarm = hasAlarm,
-                    canRequestNotif = canRequestNotif,
+                    hasBatteryOpt = hasBatteryOpt,
                 )
             }
         }
     }
 }
 
-private val LmsTransitionSpec: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
-    slideIntoContainer(
-        towards = AnimatedContentTransitionScope.SlideDirection.Left,
-        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-    ).togetherWith(
-        slideOutOfContainer(
-            towards = AnimatedContentTransitionScope.SlideDirection.Left,
-            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-            targetOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
-        ) +
-            fadeOut(
-                animationSpec = tween(durationMillis = 350, easing = LinearEasing),
-                targetAlpha = 0.5f,
-            ),
-    )
-}
-
-private val LmsPopTransitionSpec: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
-    (
-        slideIntoContainer(
-            towards = AnimatedContentTransitionScope.SlideDirection.Right,
-            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-            initialOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
-        ) +
-            fadeIn(
-                animationSpec = tween(durationMillis = 350, easing = LinearEasing),
-                initialAlpha = 0.5f,
-            )
-    ).togetherWith(
-        slideOutOfContainer(
-            towards = AnimatedContentTransitionScope.SlideDirection.Right,
-            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
-        ),
-    )
-}
-
 @Composable
-private fun ObserveSnackbarEvents(
-    flow: Flow<String>,
-    showSnackbar: (String) -> Unit,
-) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(flow, lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            flow.collect { showSnackbar(it) }
-        }
-    }
-}
+fun LmsAppContent(mainViewModel: MainViewModel) {
+    val isLoggedIn by mainViewModel.isLoggedIn.collectAsStateWithLifecycle()
+    val isRefreshing by mainViewModel.isRefreshing.collectAsStateWithLifecycle()
 
-@Composable
-fun LmsAppContent(
-    isLoggedIn: Boolean,
-    mainViewModel: MainViewModel,
-) {
     val scope = rememberCoroutineScope()
     val backStack = rememberNavBackStack(if (isLoggedIn) DashboardNavKey else LoginNavKey)
     val pullToRefreshState = rememberPullToRefreshState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val isRefreshing by mainViewModel.isRefreshing.collectAsStateWithLifecycle()
+    LaunchedEffect(isLoggedIn) {
+        backStack.removeAt(0)
+        backStack.add(0, if (isLoggedIn) DashboardNavKey else LoginNavKey)
+    }
 
     val showSnackbar: (String) -> Unit = { msg ->
         scope.launch { snackbarHostState.showSnackbar(msg) }
     }
 
     ObserveSnackbarEvents(mainViewModel.snackbarEvent, showSnackbar)
-
-    LaunchedEffect(isLoggedIn) {
-        backStack.removeAt(0)
-        backStack.add(0, if (isLoggedIn) DashboardNavKey else LoginNavKey)
-    }
 
     val onBack: () -> Unit = { backStack.removeAt(backStack.lastIndex) }
 
@@ -314,39 +232,35 @@ fun LmsAppContent(
         )
     }
 
-    if (!isLoggedIn) {
-        content()
-    } else {
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            state = pullToRefreshState,
-            onRefresh = { mainViewModel.refresh() },
-            contentAlignment = Alignment.TopCenter,
-            indicator = {
-                SyncIndicator(
-                    state = pullToRefreshState,
-                    isRefreshing = isRefreshing,
-                )
-            },
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            content()
-
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.align(Alignment.BottomCenter),
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        state = pullToRefreshState,
+        onRefresh = { mainViewModel.refresh() },
+        contentAlignment = Alignment.TopCenter,
+        enabled = isLoggedIn,
+        indicator = {
+            SyncIndicator(
+                state = pullToRefreshState,
+                isRefreshing = isRefreshing,
             )
-        }
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        content()
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
 @Composable
 fun BlockerDialog(
     onNotif: () -> Unit,
-    onAlarm: () -> Unit,
+    onBatteryOpt: () -> Unit,
     hasNotif: Boolean,
-    hasAlarm: Boolean,
-    canRequestNotif: Boolean,
+    hasBatteryOpt: Boolean,
 ) {
     AlertDialog(
         onDismissRequest = { },
@@ -418,7 +332,7 @@ fun BlockerDialog(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    text = if (canRequestNotif) "Aktifkan Notifikasi" else "Buka Pengaturan Notifikasi",
+                                    text = "Buka Pengaturan Notifikasi",
                                     fontWeight = FontWeight.Bold,
                                 )
                             }
@@ -426,7 +340,7 @@ fun BlockerDialog(
                     }
                 }
 
-                if (!hasAlarm) {
+                if (!hasBatteryOpt) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors =
@@ -438,13 +352,13 @@ fun BlockerDialog(
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = Icons.Default.Alarm,
+                                    imageVector = Icons.Default.Warning,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onErrorContainer,
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Izin Alarm Presisi",
+                                    text = "Optimasi Baterai",
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onErrorContainer,
@@ -452,13 +366,13 @@ fun BlockerDialog(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Diperlukan agar pengecekan tugas berjalan tepat waktu setiap 15 menit sekali.",
+                                text = "Diperlukan agar sistem tidak mematikan pemantauan latar belakang secara otomatis.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Button(
-                                onClick = onAlarm,
+                                onClick = onBatteryOpt,
                                 colors =
                                     ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.error,
@@ -467,7 +381,7 @@ fun BlockerDialog(
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("Buka Pengaturan Alarm", fontWeight = FontWeight.Bold)
+                                Text("Matikan Optimasi Baterai", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -492,20 +406,60 @@ fun BlockerDialog(
     )
 }
 
+@Composable
+private fun ObserveSnackbarEvents(
+    flow: Flow<String>,
+    showSnackbar: (String) -> Unit,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(flow, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            flow.collect { showSnackbar(it) }
+        }
+    }
+}
+
+private val LmsTransitionSpec: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
+    slideIntoContainer(
+        towards = AnimatedContentTransitionScope.SlideDirection.Left,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+    ).togetherWith(
+        slideOutOfContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.Left,
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+            targetOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
+        ) +
+            fadeOut(
+                animationSpec = tween(durationMillis = 350, easing = LinearEasing),
+                targetAlpha = 0.5f,
+            ),
+    )
+}
+
+private val LmsPopTransitionSpec: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
+    (
+        slideIntoContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.Right,
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+            initialOffset = { offsetForFullSlide -> offsetForFullSlide / 3 },
+        ) +
+            fadeIn(
+                animationSpec = tween(durationMillis = 350, easing = LinearEasing),
+                initialAlpha = 0.5f,
+            )
+    ).togetherWith(
+        slideOutOfContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.Right,
+            animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        ),
+    )
+}
+
 private fun isNotifGranted(context: Context): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+
     return context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 }
 
-private fun isAlarmGranted(context: Context): Boolean {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-    return context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
-}
-
-private fun canRequestNotif(activity: Activity?): Boolean {
-    if (activity == null) return false
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-    val granted = activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-    val rationale = activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
-    return granted || rationale
-}
+private fun isIgnoreBattery(context: Context) =
+    context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
