@@ -201,6 +201,7 @@ fun DashboardScreenStateless(
                             scope.launch {
                                 delay(150.milliseconds)
                                 onLogout()
+                                showLogoutDialog = false
                             }
                         },
                         modifier =
