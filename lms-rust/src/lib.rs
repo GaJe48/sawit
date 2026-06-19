@@ -482,11 +482,13 @@ impl InternetDataSource {
                 msg: "Empty response body from server".to_string(),
             })?;
 
-        let ext = infer::get(&first_chunk)
+        let ext = std::path::Path::new(response.url().path())
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .or_else(|| infer::get(&first_chunk).map(|inferred| inferred.extension()))
             .ok_or_else(|| LmsError::ParserError {
-                msg: "Could not determine file type from magic number".to_string(),
-            })?
-            .extension();
+                msg: "Could not determine file type from URL or magic number".to_string(),
+            })?;
 
         let file_name = format!("{}.{}", raw_file_name, ext);
 
