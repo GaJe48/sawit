@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gaje48.lms.R
 import com.gaje48.lms.model.AttendanceScreenData
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.FloatingBlobsBackground
@@ -145,7 +147,7 @@ fun AttendanceScreenStateless(
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        LoadingGif(label = "Sedang memproses presensi Anda...")
+                        LoadingGif(label = stringResource(R.string.attendance_processing_dialog))
                     }
                 },
             )
@@ -186,13 +188,13 @@ fun AttendanceScreenStateless(
                                     scaleY = backScale
                                 },
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.meeting_back_desc))
                         }
                     },
                     title = {
                         Column {
                             Text(
-                                text = "Rekap Presensi",
+                                text = stringResource(R.string.attendance_recap_title),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                             )
@@ -229,7 +231,7 @@ fun AttendanceScreenStateless(
                             modifier = Modifier.fillParentMaxSize(),
                             contentAlignment = Alignment.Center,
                         ) {
-                            EmptyGif(label = "Belum ada data absen")
+                            EmptyGif(label = stringResource(R.string.attendance_no_attendances))
                         }
                     }
                 }
@@ -267,7 +269,7 @@ fun AttendanceScreenStateless(
 
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    text = "Tingkat Kehadiran",
+                                    text = stringResource(R.string.attendance_rate_title),
                                     fontWeight = FontWeight.ExtraBold,
                                     style = MaterialTheme.typography.titleMedium,
                                 )
@@ -275,7 +277,7 @@ fun AttendanceScreenStateless(
                                 Spacer(modifier = Modifier.height(4.dp))
 
                                 Text(
-                                    text = "$attendedCount dari $totalCount Pertemuan Hadir",
+                                    text = stringResource(R.string.attendance_count_formatted, attendedCount, totalCount),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.Medium,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -340,14 +342,14 @@ fun AttendanceScreenStateless(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Warning,
-                                    contentDescription = "Pemberitahuan",
+                                    contentDescription = stringResource(R.string.attendance_info_title),
                                     tint = MaterialTheme.colorScheme.tertiary,
                                     modifier = Modifier.padding(10.dp),
                                 )
                             }
                             Column {
                                 Text(
-                                    text = "Informasi Penting Presensi",
+                                    text = stringResource(R.string.attendance_info_title),
                                     fontWeight = FontWeight.ExtraBold,
                                     style = MaterialTheme.typography.titleMedium,
                                 )
@@ -355,7 +357,7 @@ fun AttendanceScreenStateless(
                                 Spacer(modifier = Modifier.height(4.dp))
 
                                 Text(
-                                    text = "Sistem endeteksi kehadiran secara otomatis ketika Anda mengunduh materi. Namun, harap ikuti instruksi dosen jika presensi dilakukan lewat formulir eksternal atau tugas khusus.",
+                                    text = stringResource(R.string.attendance_info_desc),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     lineHeight = 20.sp,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -364,7 +366,7 @@ fun AttendanceScreenStateless(
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Text(
-                                    text = "⚠️ PERINGATAN: Menekan tombol \"Isi Absen\" berulang kali secara cepat dapat membebani server dan mengakibatkan pemblokiran akun otomatis.",
+                                    text = stringResource(R.string.attendance_info_warning),
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Black,
                                     letterSpacing = 0.2.sp,
@@ -377,7 +379,7 @@ fun AttendanceScreenStateless(
 
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = "Riwayat Sesi Kuliah",
+                        text = stringResource(R.string.attendance_history_title),
                         fontWeight = FontWeight.Black,
                         style = MaterialTheme.typography.titleLarge,
                     )
@@ -428,7 +430,7 @@ fun AttendanceCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "SESI",
+                    text = stringResource(R.string.attendance_session_label),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Black,
                     color = accentColor,
@@ -456,7 +458,7 @@ fun AttendanceCard(
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(
-                        text = "Hadir Tercatat",
+                        text = stringResource(R.string.attendance_present_label),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Black,
                         color = accentColor,
@@ -487,7 +489,7 @@ fun AttendanceCard(
                     interactionSource = interactionSource,
                 ) {
                     Text(
-                        text = "Isi Absen",
+                        text = stringResource(R.string.attendance_button_attend),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Black,
                         color = Color.White,
@@ -499,7 +501,7 @@ fun AttendanceCard(
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(
-                        text = "Tidak Ada Link",
+                        text = stringResource(R.string.attendance_no_link_label),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error,

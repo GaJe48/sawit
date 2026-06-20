@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Details -->
+    <string name="app_name">SAWIT</string>
+
+    <!-- Blocker Dialog -->
+    <string name="blocker_title">Izin Diperlukan</string>
+    <string name="blocker_desc">Aplikasi memerlukan izin berikut agar pemantauan tugas kuliah dapat berjalan secara andal di background. Aplikasi tidak dapat digunakan sampai izin diberikan.</string>
+    <string name="notif_permission_title">Izin Notifikasi</string>
+    <string name="notif_permission_desc">Diperlukan untuk memberi tahu Anda secara instan jika ada tugas baru.</string>
+    <string name="notif_permission_button_settings">Buka Pengaturan Notifikasi</string>
+    <string name="notif_permission_button_enable">Aktifkan Notifikasi</string>
+    <string name="alarm_permission_title">Izin Alarm Presisi</string>
+    <string name="alarm_permission_desc">Diperlukan agar pengecekan tugas berjalan tepat waktu setiap 30 menit sekali.</string>
+    <string name="alarm_permission_button_open">Buka Pengaturan Alarm</string>
+    <string name="battery_permission_title">Optimasi Baterai</string>
+    <string name="battery_permission_desc">Diperlukan agar sistem tidak mematikan pemantauan latar belakang secara otomatis.</string>
+    <string name="battery_permission_button_disable">Matikan Optimasi Baterai</string>
+    
+    <!-- Login Screen -->
+    <string name="login_title_sub">Sistem Akademik &amp; Wahana Informasi Terpadu</string>
+    <string name="login_welcome">Selamat Datang</string>
+    <string name="login_username_label">NIM Mahasiswa</string>
+    <string name="login_username_validation_error">NIM harus minimal 12 digit</string>
+    <string name="login_password_label">Password Portal</string>
+    <string name="login_password_toggle_desc">Tahan untuk melihat password</string>
+    <string name="login_button_processing">Memproses Keamanan...</string>
+    <string name="login_button_success">Berhasil Masuk!</string>
+    <string name="login_button_idle">Masuk Portal</string>
+    <string name="login_forgot_password_link">Lupa Kata Sandi?</string>
+    <string name="login_forgot_password_title">Lupa Kata Sandi</string>
+    <string name="login_forgot_password_desc">Masukkan alamat email yang terdaftar untuk menerima tautan pemulihan kata sandi.</string>
+    <string name="login_email_label">Email</string>
+    <string name="login_email_validation_error">Format email tidak valid</string>
+    <string name="login_reset_success_banner">Tautan/proses pemulihan kata sandi telah dikirim. Silakan cek email Gmail Anda.</string>
+    <string name="login_reset_button_processing">Mengirim Permintaan...</string>
+    <string name="login_reset_button_success">Tautan Dikirim!</string>
+    <string name="login_reset_button_idle">Kirim Link Reset</string>
+    <string name="login_back_to_login">Kembali ke Halaman Login</string>
+
+    <!-- Dashboard Screen -->
+    <string name="dashboard_logout_title">Keluar Akun</string>
+    <string name="dashboard_logout_desc">Apakah kamu yakin ingin logout dari sistem? Kamu perlu masuk kembali menggunakan NIM dan password.</string>
+    <string name="dashboard_logout_confirm">Logout</string>
+    <string name="dashboard_logout_dismiss">Batal</string>
+    <string name="dashboard_hello">Halo, %1$s</string>
+    <string name="dashboard_not_synced_yet">Belum pernah sinkron</string>
+    <string name="dashboard_profile_picture_content_desc">Foto Profil</string>
+    <string name="dashboard_npm">NPM %1$s</string>
+    <string name="dashboard_class">Kelas %1$s</string>
+    <string name="dashboard_no_schedule">Belum ada jadwal mata kuliah</string>
+    <string name="dashboard_schedule_title">Jadwal Kuliah Anda</string>
+    <string name="dashboard_room">Ruang %1$s</string>
+    <string name="dashboard_presence_button">Presensi</string>
+    <string name="dashboard_assignment_button">Tugas</string>
+    <string name="dashboard_attendance_track">Track Kehadiran</string>
+    <string name="dashboard_attendance_percentage">%1$s%% (%2$d/%3$d)</string>
+
+    <!-- Meeting Screen -->
+    <string name="meeting_back_desc">Back</string>
+    <string name="meeting_lecturer_pic_desc">Foto Profil Dosen</string>
+    <string name="meeting_lecturer_no_phone">Nomor HP tidak tersedia</string>
+    <string name="meeting_lecturer_wa_desc">Hubungi WhatsApp</string>
+    <string name="meeting_lecturer_room">Ruang %1$s</string>
+    <string name="meeting_no_meetings">Belum ada daftar pertemuan</string>
+    <string name="meeting_list_title">Daftar Pertemuan</string>
+    <string name="meeting_title_formatted">Pertemuan Ke-%1$d</string>
+    <string name="meeting_tap_to_view">Ketuk untuk melihat file materi &amp; sesi</string>
+    <string name="meeting_no_files">Tidak ada file materi yang tersedia</string>
+    <string name="meeting_section_files">File Pembelajaran</string>
+    <string name="meeting_card_desc_download">Ketuk untuk mengunduh berkas</string>
+    <string name="meeting_section_links">Tautan Pendukung</string>
+    <string name="meeting_card_desc_browser">Ketuk untuk membuka link di browser</string>
+
+    <!-- Assignment Screen -->
+    <string name="assignment_title">Tugas Kuliah</string>
+    <string name="assignment_no_assignments">Belum ada tugas kuliah</string>
+    <string name="assignment_submitted_status">Selesai Dikirim</string>
+    <string name="assignment_overdue_status">Waktu Habis</string>
+    <string name="assignment_pending_status">Belum Dikirim</string>
+    <string name="assignment_header">Tugas / Instruksi</string>
+    <string name="assignment_deadline_formatted">Batas Waktu: %1$s</string>
+    <string name="assignment_button_download">Unduh Berkas</string>
+    <string name="assignment_button_my_file">Berkas Saya</string>
+    <string name="assignment_button_change">Ganti Jawaban Tugas</string>
+    <string name="assignment_button_submit">Kirim Jawaban Sekarang</string>
+
+    <!-- Attendance Screen -->
+    <string name="attendance_processing_dialog">Sedang memproses presensi Anda...</string>
+    <string name="attendance_recap_title">Rekap Presensi</string>
+    <string name="attendance_no_attendances">Belum ada data absen</string>
+    <string name="attendance_rate_title">Tingkat Kehadiran</string>
+    <string name="attendance_count_formatted">%1$d dari %2$d Pertemuan Hadir</string>
+    <string name="attendance_info_title">Informasi Penting Presensi</string>
+    <string name="attendance_info_desc">Sistem mendeteksi kehadiran secara otomatis ketika Anda mengunduh materi. Namun, harap ikuti instruksi dosen jika presensi dilakukan lewat formulir eksternal atau tugas khusus.</string>
+    <string name="attendance_info_warning">⚠️ PERINGATAN: Menekan tombol \"Isi Absen\" berulang kali secara cepat dapat membebani server dan mengakibatkan pemblokiran akun otomatis.</string>
+    <string name="attendance_history_title">Riwayat Sesi Kuliah</string>
+    <string name="attendance_session_label">SESI</string>
+    <string name="attendance_present_label">Hadir Tercatat</string>
+    <string name="attendance_button_attend">Isi Absen</string>
+    <string name="attendance_no_link_label">Tidak Ada Link</string>
+</resources>

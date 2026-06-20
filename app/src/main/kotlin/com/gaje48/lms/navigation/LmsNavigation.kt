@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -71,6 +72,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.gaje48.lms.R
 import com.gaje48.lms.model.AssignmentNavKey
 import com.gaje48.lms.model.AttendanceNavKey
 import com.gaje48.lms.model.DashboardNavKey
@@ -267,14 +269,14 @@ fun BlockerDialog(
         icon = {
             Icon(
                 imageVector = Icons.Default.Warning,
-                contentDescription = "Peringatan",
+                contentDescription = stringResource(R.string.blocker_title),
                 tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(28.dp),
             )
         },
         title = {
             Text(
-                text = "Izin Diperlukan",
+                text = stringResource(R.string.blocker_title),
                 fontWeight = FontWeight.ExtraBold,
                 style = MaterialTheme.typography.titleLarge,
             )
@@ -285,7 +287,7 @@ fun BlockerDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(
-                    text = "Aplikasi memerlukan izin berikut agar pemantauan tugas kuliah dapat berjalan secara andal di background. Aplikasi tidak dapat digunakan sampai izin diberikan.",
+                    text = stringResource(R.string.blocker_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -308,7 +310,7 @@ fun BlockerDialog(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Izin Notifikasi",
+                                    text = stringResource(R.string.notif_permission_title),
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onErrorContainer,
@@ -316,7 +318,7 @@ fun BlockerDialog(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Diperlukan untuk memberi tahu Anda secara instan jika ada tugas baru.",
+                                text = stringResource(R.string.notif_permission_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                             )
@@ -332,7 +334,7 @@ fun BlockerDialog(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    text = "Buka Pengaturan Notifikasi",
+                                    text = stringResource(R.string.notif_permission_button_settings),
                                     fontWeight = FontWeight.Bold,
                                 )
                             }
@@ -358,7 +360,7 @@ fun BlockerDialog(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Optimasi Baterai",
+                                    text = stringResource(R.string.battery_permission_title),
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onErrorContainer,
@@ -366,7 +368,7 @@ fun BlockerDialog(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Diperlukan agar sistem tidak mematikan pemantauan latar belakang secara otomatis.",
+                                text = stringResource(R.string.battery_permission_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                             )
@@ -381,7 +383,7 @@ fun BlockerDialog(
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("Matikan Optimasi Baterai", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.battery_permission_button_disable), fontWeight = FontWeight.Bold)
                             }
                         }
                     }

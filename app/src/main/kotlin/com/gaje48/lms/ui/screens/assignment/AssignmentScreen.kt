@@ -54,12 +54,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gaje48.lms.R
 import com.gaje48.lms.model.AssignmentScreenData
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.FloatingBlobsBackground
@@ -133,7 +135,7 @@ fun AssignmentScreenStateless(
                     title = {
                         Column {
                             Text(
-                                text = "Tugas Kuliah",
+                                text = stringResource(R.string.assignment_title),
                                 fontWeight = FontWeight.Black,
                                 style = MaterialTheme.typography.titleLarge,
                             )
@@ -179,7 +181,7 @@ fun AssignmentScreenStateless(
                             contentPadding = PaddingValues(),
                             interactionSource = backInteraction,
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.meeting_back_desc))
                         }
                     },
                 )
@@ -214,7 +216,7 @@ fun AssignmentScreenStateless(
                         Box(
                             modifier = Modifier.fillParentMaxSize(),
                             contentAlignment = Alignment.Center,
-                        ) { EmptyGif(label = "Belum ada tugas kuliah") }
+                        ) { EmptyGif(label = stringResource(R.string.assignment_no_assignments)) }
                     }
 
                     return@LazyColumn
@@ -258,9 +260,9 @@ fun AssignmentCard(
 
     val statusLabel =
         when {
-            assignmentScreenData.isSubmitted -> "Selesai Dikirim"
-            assignmentScreenData.isOverdue -> "Waktu Habis"
-            else -> "Belum Dikirim"
+            assignmentScreenData.isSubmitted -> stringResource(R.string.assignment_submitted_status)
+            assignmentScreenData.isOverdue -> stringResource(R.string.assignment_overdue_status)
+            else -> stringResource(R.string.assignment_pending_status)
         }
 
     Card(
@@ -298,7 +300,7 @@ fun AssignmentCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Tugas / Instruksi",
+                text = stringResource(R.string.assignment_header),
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 1.sp,
@@ -331,7 +333,7 @@ fun AssignmentCard(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Batas Waktu: ${assignmentScreenData.deadline}",
+                    text = stringResource(R.string.assignment_deadline_formatted, assignmentScreenData.deadline),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold,
@@ -364,7 +366,7 @@ fun AssignmentCard(
                     ) {
                         Icon(Icons.Default.Description, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(text = "Unduh Berkas", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(text = stringResource(R.string.assignment_button_download), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -394,7 +396,7 @@ fun AssignmentCard(
                     ) {
                         Icon(Icons.Default.Description, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(text = "Berkas Saya", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(text = stringResource(R.string.assignment_button_my_file), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -438,7 +440,14 @@ fun AssignmentCard(
                     Icon(Icons.Default.FileUpload, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = if (assignmentScreenData.isSubmitted) "Ganti Jawaban Tugas" else "Kirim Jawaban Sekarang",
+                        text =
+                            if (assignmentScreenData.isSubmitted) {
+                                stringResource(
+                                    R.string.assignment_button_change,
+                                )
+                            } else {
+                                stringResource(R.string.assignment_button_submit)
+                            },
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                     )

@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.gaje48.lms.R
 import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Student
@@ -175,7 +177,7 @@ fun DashboardScreenStateless(
                 },
                 title = {
                     Text(
-                        text = "Keluar Akun",
+                        text = stringResource(R.string.dashboard_logout_title),
                         fontWeight = FontWeight.ExtraBold,
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.titleLarge,
@@ -183,7 +185,7 @@ fun DashboardScreenStateless(
                 },
                 text = {
                     Text(
-                        text = "Apakah kamu yakin ingin logout dari sistem? Kamu perlu masuk kembali menggunakan NIM dan password.",
+                        text = stringResource(R.string.dashboard_logout_desc),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -216,7 +218,7 @@ fun DashboardScreenStateless(
                                 contentColor = MaterialTheme.colorScheme.onError,
                             ),
                         interactionSource = confirmInteraction,
-                    ) { Text(text = "Logout", fontWeight = FontWeight.Bold) }
+                    ) { Text(text = stringResource(R.string.dashboard_logout_confirm), fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = {
                     val dismissInteraction = remember { MutableInteractionSource() }
@@ -248,7 +250,7 @@ fun DashboardScreenStateless(
                         interactionSource = dismissInteraction,
                     ) {
                         Text(
-                            text = "Batal",
+                            text = stringResource(R.string.dashboard_logout_dismiss),
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
                         )
@@ -276,7 +278,7 @@ fun DashboardScreenStateless(
                     title = {
                         Column {
                             Text(
-                                text = "Halo, ${student.studentName.substringBefore(' ')}",
+                                text = stringResource(R.string.dashboard_hello, student.studentName.substringBefore(' ')),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                             )
@@ -290,7 +292,14 @@ fun DashboardScreenStateless(
                                         Modifier
                                             .size(6.dp)
                                             .background(
-                                                color = if (lastSyncText != "Belum pernah sinkron") Color(0xFF10B981) else Color.Gray,
+                                                color =
+                                                    if (lastSyncText !=
+                                                        stringResource(R.string.dashboard_not_synced_yet)
+                                                    ) {
+                                                        Color(0xFF10B981)
+                                                    } else {
+                                                        Color.Gray
+                                                    },
                                                 shape = CircleShape,
                                             ),
                                 )
@@ -335,7 +344,7 @@ fun DashboardScreenStateless(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Logout",
+                                contentDescription = stringResource(R.string.dashboard_logout_confirm),
                                 tint = MaterialTheme.colorScheme.error,
                             )
                         }
@@ -371,7 +380,10 @@ fun DashboardScreenStateless(
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                 ) {
                                     if (student.studentProfilePictureUrl != null) {
-                                        AsyncImage(student.studentProfilePictureUrl, "Foto Profil")
+                                        AsyncImage(
+                                            student.studentProfilePictureUrl,
+                                            stringResource(R.string.dashboard_profile_picture_content_desc),
+                                        )
                                     } else {
                                         Icon(
                                             imageVector = Icons.Default.Person,
@@ -395,7 +407,7 @@ fun DashboardScreenStateless(
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        text = "NPM ${student.npm}",
+                                        text = stringResource(R.string.dashboard_npm, student.npm),
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.5.sp,
@@ -423,7 +435,7 @@ fun DashboardScreenStateless(
                                 if (student.classCode != null) {
                                     InfoBadge(
                                         icon = Icons.Default.MeetingRoom,
-                                        text = "Kelas ${student.classCode}",
+                                        text = stringResource(R.string.dashboard_class, student.classCode),
                                         color = MaterialTheme.colorScheme.secondary,
                                     )
                                 }
@@ -438,7 +450,7 @@ fun DashboardScreenStateless(
                             modifier = Modifier.fillParentMaxHeight(0.7f),
                             contentAlignment = Alignment.Center,
                         ) {
-                            EmptyGif(label = "Belum ada jadwal mata kuliah")
+                            EmptyGif(label = stringResource(R.string.dashboard_no_schedule))
                         }
                     }
 
@@ -447,7 +459,7 @@ fun DashboardScreenStateless(
 
                 item {
                     Text(
-                        text = "Jadwal Kuliah Anda",
+                        text = stringResource(R.string.dashboard_schedule_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
                     )
@@ -541,7 +553,7 @@ fun CourseCard(
                 )
                 InfoBadge(
                     icon = Icons.Default.MeetingRoom,
-                    text = "Ruang " + course.room,
+                    text = stringResource(R.string.dashboard_room, course.room),
                     color = MaterialTheme.colorScheme.tertiary,
                 )
             }
@@ -598,7 +610,7 @@ fun CourseCard(
                     contentPadding = PaddingValues(horizontal = 14.dp),
                     interactionSource = abInteraction,
                 ) {
-                    Text(text = "Presensi", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    Text(text = stringResource(R.string.dashboard_presence_button), fontSize = 12.sp, fontWeight = FontWeight.Black)
                 }
 
                 Spacer(Modifier.width(12.dp))
@@ -624,7 +636,7 @@ fun CourseCard(
                     contentPadding = PaddingValues(horizontal = 14.dp),
                     interactionSource = tgInteraction,
                 ) {
-                    Text("Tugas", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    Text(stringResource(R.string.dashboard_assignment_button), fontSize = 12.sp, fontWeight = FontWeight.Black)
                 }
             }
         }
@@ -645,12 +657,12 @@ fun AttendanceGraph(attendances: List<Boolean>) {
     Column {
         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text(
-                text = "Track Kehadiran",
+                text = stringResource(R.string.dashboard_attendance_track),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "$percentage% ($attendedCount/${attendances.size})",
+                text = stringResource(R.string.dashboard_attendance_percentage, percentage.toString(), attendedCount, attendances.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (percentage >= 75) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                 fontWeight = FontWeight.Black,

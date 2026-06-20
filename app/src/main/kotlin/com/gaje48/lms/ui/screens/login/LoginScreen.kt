@@ -56,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gaje48.lms.R
 import com.gaje48.lms.model.AuthStatus
 import com.gaje48.lms.ui.components.FloatingBlobsBackground
 import com.gaje48.lms.ui.components.rememberPressedState
@@ -204,7 +206,7 @@ fun LoginScreenStateless(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = "SAWIT",
+                    text = stringResource(R.string.app_name),
                     color = MaterialTheme.colorScheme.primary,
                     fontFamily = RighteousFontFamily,
                     letterSpacing = 2.sp,
@@ -212,7 +214,7 @@ fun LoginScreenStateless(
                 )
 
                 Text(
-                    text = "Sistem Akademik & Wahana Informasi Terpadu",
+                    text = stringResource(R.string.login_title_sub),
                     color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleMedium,
@@ -233,7 +235,7 @@ fun LoginScreenStateless(
                         Column(modifier = Modifier.padding(32.dp)) {
                             if (!currentIsReset) {
                                 Text(
-                                    text = "Selamat Datang",
+                                    text = stringResource(R.string.login_welcome),
                                     fontWeight = FontWeight.ExtraBold,
                                     style = MaterialTheme.typography.headlineSmall,
                                 )
@@ -243,13 +245,13 @@ fun LoginScreenStateless(
                                 OutlinedTextField(
                                     value = nim,
                                     onValueChange = { input -> if (input.all { it.isDigit() }) nim = input },
-                                    label = { Text("NIM Mahasiswa") },
+                                    label = { Text(stringResource(R.string.login_username_label)) },
                                     isError = !isNimValid,
                                     supportingText =
                                         if (!isNimValid) {
                                             {
                                                 Text(
-                                                    text = "NIM harus minimal 12 digit",
+                                                    text = stringResource(R.string.login_username_validation_error),
                                                     color = MaterialTheme.colorScheme.error,
                                                 )
                                             }
@@ -263,7 +265,7 @@ fun LoginScreenStateless(
                                         ),
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    leadingIcon = { Icon(Icons.Default.Person, "Ikon NIM") },
+                                    leadingIcon = { Icon(Icons.Default.Person, stringResource(R.string.login_username_label)) },
                                     shape = RoundedCornerShape(16.dp),
                                     colors =
                                         OutlinedTextFieldDefaults.colors(
@@ -277,7 +279,7 @@ fun LoginScreenStateless(
                                 OutlinedTextField(
                                     value = password,
                                     onValueChange = { password = it },
-                                    label = { Text("Password Portal") },
+                                    label = { Text(stringResource(R.string.login_password_label)) },
                                     visualTransformation =
                                         if (isPasswordVisible) {
                                             VisualTransformation.None
@@ -301,7 +303,7 @@ fun LoginScreenStateless(
                                         ),
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    leadingIcon = { Icon(Icons.Default.Lock, "Ikon Password") },
+                                    leadingIcon = { Icon(Icons.Default.Lock, stringResource(R.string.login_password_label)) },
                                     trailingIcon = {
                                         IconButton(
                                             onClick = { },
@@ -314,7 +316,7 @@ fun LoginScreenStateless(
                                                     } else {
                                                         Icons.Default.VisibilityOff
                                                     },
-                                                contentDescription = "Tahan untuk melihat password",
+                                                contentDescription = stringResource(R.string.login_password_toggle_desc),
                                             )
                                         }
                                     },
@@ -389,7 +391,7 @@ fun LoginScreenStateless(
                                                     )
                                                     Spacer(Modifier.width(12.dp))
                                                     Text(
-                                                        text = "Memproses Keamanan...",
+                                                        text = stringResource(R.string.login_button_processing),
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 16.sp,
                                                     )
@@ -400,12 +402,12 @@ fun LoginScreenStateless(
                                                 Row {
                                                     Icon(
                                                         imageVector = Icons.Default.CheckCircle,
-                                                        contentDescription = "Sukses",
+                                                        contentDescription = stringResource(R.string.login_button_success),
                                                         modifier = Modifier.size(22.dp),
                                                     )
                                                     Spacer(Modifier.width(8.dp))
                                                     Text(
-                                                        text = "Berhasil Masuk!",
+                                                        text = stringResource(R.string.login_button_success),
                                                         fontSize = 16.sp,
                                                         fontWeight = FontWeight.Black,
                                                     )
@@ -414,7 +416,7 @@ fun LoginScreenStateless(
 
                                             AuthStatus.IDLE -> {
                                                 Text(
-                                                    text = "Masuk Portal",
+                                                    text = stringResource(R.string.login_button_idle),
                                                     fontSize = 16.sp,
                                                     fontWeight = FontWeight.Black,
                                                 )
@@ -425,10 +427,10 @@ fun LoginScreenStateless(
 
                                 Spacer(Modifier.height(10.dp))
 
-                                modeToggleButton("Lupa Kata Sandi?")
+                                modeToggleButton(stringResource(R.string.login_forgot_password_link))
                             } else {
                                 Text(
-                                    text = "Lupa Kata Sandi",
+                                    text = stringResource(R.string.login_forgot_password_title),
                                     fontWeight = FontWeight.ExtraBold,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.headlineSmall,
@@ -437,7 +439,7 @@ fun LoginScreenStateless(
                                 Spacer(Modifier.height(10.dp))
 
                                 Text(
-                                    text = "Masukkan alamat email yang terdaftar untuk menerima tautan pemulihan kata sandi.",
+                                    text = stringResource(R.string.login_forgot_password_desc),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     lineHeight = 20.sp,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -448,13 +450,13 @@ fun LoginScreenStateless(
                                 OutlinedTextField(
                                     value = email,
                                     onValueChange = { email = it },
-                                    label = { Text("Email") },
+                                    label = { Text(stringResource(R.string.login_email_label)) },
                                     isError = !isEmailValid,
                                     supportingText =
                                         if (!isEmailValid) {
                                             {
                                                 Text(
-                                                    text = "Format email tidak valid",
+                                                    text = stringResource(R.string.login_email_validation_error),
                                                     color = MaterialTheme.colorScheme.error,
                                                 )
                                             }
@@ -474,7 +476,7 @@ fun LoginScreenStateless(
                                         ),
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    leadingIcon = { Icon(Icons.Default.Email, "Ikon Email") },
+                                    leadingIcon = { Icon(Icons.Default.Email, stringResource(R.string.login_email_label)) },
                                     shape = RoundedCornerShape(16.dp),
                                     colors =
                                         OutlinedTextFieldDefaults.colors(
@@ -511,7 +513,7 @@ fun LoginScreenStateless(
                                         border = BorderStroke(1.dp, Color(0xFF137333).copy(0.3f)),
                                     ) {
                                         Text(
-                                            text = "Tautan/proses pemulihan kata sandi telah dikirim. Silakan cek email Gmail Anda.",
+                                            text = stringResource(R.string.login_reset_success_banner),
                                             color = Color(0xFF137333),
                                             style = MaterialTheme.typography.bodySmall,
                                             modifier = Modifier.padding(12.dp),
@@ -566,7 +568,7 @@ fun LoginScreenStateless(
                                                     )
                                                     Spacer(modifier = Modifier.width(12.dp))
                                                     Text(
-                                                        text = "Mengirim Permintaan...",
+                                                        text = stringResource(R.string.login_reset_button_processing),
                                                         fontSize = 16.sp,
                                                         fontWeight = FontWeight.Bold,
                                                     )
@@ -577,13 +579,13 @@ fun LoginScreenStateless(
                                                 Row {
                                                     Icon(
                                                         imageVector = Icons.Default.CheckCircle,
-                                                        contentDescription = "Sukses",
+                                                        contentDescription = stringResource(R.string.login_reset_button_success),
                                                         modifier = Modifier.size(22.dp),
                                                         tint = Color(0xFF137333),
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
                                                     Text(
-                                                        text = "Tautan Dikirim!",
+                                                        text = stringResource(R.string.login_reset_button_success),
                                                         color = Color(0xFF137333),
                                                         fontSize = 16.sp,
                                                         fontWeight = FontWeight.Black,
@@ -593,7 +595,7 @@ fun LoginScreenStateless(
 
                                             AuthStatus.IDLE -> {
                                                 Text(
-                                                    text = "Kirim Link Reset",
+                                                    text = stringResource(R.string.login_reset_button_idle),
                                                     fontSize = 16.sp,
                                                     fontWeight = FontWeight.Black,
                                                 )
@@ -604,7 +606,7 @@ fun LoginScreenStateless(
 
                                 Spacer(Modifier.height(10.dp))
 
-                                modeToggleButton("Kembali ke Halaman Login")
+                                modeToggleButton(stringResource(R.string.login_back_to_login))
                             }
                         }
                     }

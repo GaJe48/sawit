@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -180,7 +181,7 @@ fun MeetingScreenStateless(
                             contentPadding = PaddingValues(),
                             interactionSource = backInteraction,
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.meeting_back_desc))
                         }
                     },
                 )
@@ -216,7 +217,7 @@ fun MeetingScreenStateless(
                                     color = MaterialTheme.colorScheme.secondary.copy(0.2f),
                                 ) {
                                     if (course.lecturerProfilePictureUrl != null) {
-                                        AsyncImage(course.lecturerProfilePictureUrl, "Foto Profil Dosen")
+                                        AsyncImage(course.lecturerProfilePictureUrl, stringResource(R.string.meeting_lecturer_pic_desc))
                                     } else {
                                         Icon(
                                             Icons.Default.Person,
@@ -236,7 +237,7 @@ fun MeetingScreenStateless(
                                         style = MaterialTheme.typography.titleMedium,
                                     )
                                     Text(
-                                        text = course.lecturerPhoneNumber ?: "Nomor HP tidak tersedia",
+                                        text = course.lecturerPhoneNumber ?: stringResource(R.string.meeting_lecturer_no_phone),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Medium,
                                         style = MaterialTheme.typography.bodySmall,
@@ -278,7 +279,7 @@ fun MeetingScreenStateless(
                                     ) {
                                         Icon(
                                             painterResource(R.drawable.whatsapp),
-                                            contentDescription = "Hubungi WhatsApp",
+                                            contentDescription = stringResource(R.string.meeting_lecturer_wa_desc),
                                             modifier = Modifier.size(16.dp),
                                         )
                                     }
@@ -301,7 +302,7 @@ fun MeetingScreenStateless(
                                 )
                                 InfoBadge(
                                     icon = Icons.Default.MeetingRoom,
-                                    text = "Ruang " + course.room,
+                                    text = stringResource(R.string.meeting_lecturer_room, course.room),
                                     color = chipColor,
                                 )
                             }
@@ -315,7 +316,7 @@ fun MeetingScreenStateless(
                             modifier = Modifier.fillParentMaxHeight(0.7f),
                             contentAlignment = Alignment.Center,
                         ) {
-                            EmptyGif(label = "Belum ada daftar pertemuan")
+                            EmptyGif(label = stringResource(R.string.meeting_no_meetings))
                         }
                     }
                     return@LazyColumn
@@ -323,7 +324,7 @@ fun MeetingScreenStateless(
 
                 item {
                     Text(
-                        text = "Daftar Pertemuan",
+                        text = stringResource(R.string.meeting_list_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Black,
                     )
@@ -416,12 +417,12 @@ fun MeetingCard(
 
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "Pertemuan Ke-$index",
+                        text = stringResource(R.string.meeting_title_formatted, index.toInt()),
                         fontWeight = FontWeight.ExtraBold,
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
-                        text = "Ketuk untuk melihat file materi & sesi",
+                        text = stringResource(R.string.meeting_tap_to_view),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,
                         style = MaterialTheme.typography.bodySmall,
@@ -446,7 +447,7 @@ fun MeetingCard(
                 ) {
                     if (files.isEmpty() && links.isEmpty()) {
                         Text(
-                            text = "Tidak ada file materi yang tersedia",
+                            text = stringResource(R.string.meeting_no_files),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium,
@@ -458,14 +459,14 @@ fun MeetingCard(
                     if (files.isNotEmpty()) {
                         SectionHeader(
                             icon = Icons.Default.Description,
-                            label = "File Pembelajaran",
+                            label = stringResource(R.string.meeting_section_files),
                             tint = MaterialTheme.colorScheme.primary,
                         )
                         files.forEach { item ->
                             key(item.contentUrl) {
                                 ContentCard(
                                     title = item.title,
-                                    description = "Ketuk untuk mengunduh berkas",
+                                    description = stringResource(R.string.meeting_card_desc_download),
                                     icon = iconPainter(item.type),
                                     accentColor = MaterialTheme.colorScheme.primary,
                                     onClick = { onDownloadFile(item.contentUrl) },
@@ -477,14 +478,14 @@ fun MeetingCard(
                     if (links.isNotEmpty()) {
                         SectionHeader(
                             icon = Icons.Default.Link,
-                            label = "Tautan Pendukung",
+                            label = stringResource(R.string.meeting_section_links),
                             tint = MaterialTheme.colorScheme.secondary,
                         )
                         links.forEach { item ->
                             key(item.contentUrl) {
                                 ContentCard(
                                     title = item.title,
-                                    description = "Ketuk untuk membuka link di browser",
+                                    description = stringResource(R.string.meeting_card_desc_browser),
                                     icon = iconPainter(item.type),
                                     accentColor = MaterialTheme.colorScheme.secondary,
                                     onClick = { uriHandler.openUri(item.contentUrl) },
