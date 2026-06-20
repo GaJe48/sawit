@@ -53,7 +53,7 @@ class LmsRepository(
             entities.map { it.isAttended }
         }
 
-    fun observeContentVmDatas(meetingUrl: String) = contentDao.observeContentVmDatas(meetingUrl)
+    fun observeContentVmDatasByCourse(courseCode: String) = contentDao.observeContentVmDatasByCourse(courseCode)
 
     fun observeAttendanceVmDatas(courseCode: String) = contentDao.observeAttendanceVmDatas(courseCode)
 

@@ -69,10 +69,10 @@ interface ContentDao {
         FROM content c
         INNER JOIN meeting m ON c.meetingUrl = m.meetingUrl
         INNER JOIN course cr ON m.courseCode = cr.courseCode
-        WHERE c.meetingUrl = :meetingUrl
+        WHERE cr.courseCode = :courseCode
     """,
     )
-    fun observeContentVmDatas(meetingUrl: String): Flow<List<ContentVmData>>
+    fun observeContentVmDatasByCourse(courseCode: String): Flow<List<ContentVmData>>
 
     @Query(
         """

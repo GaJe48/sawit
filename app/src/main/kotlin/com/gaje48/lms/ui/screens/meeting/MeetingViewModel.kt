@@ -3,6 +3,7 @@ package com.gaje48.lms.ui.screens.meeting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.LmsRepository
+import com.gaje48.lms.model.ContentVmData
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Meeting
 import com.gaje48.lms.util.NotificationHelper
@@ -10,15 +11,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+data class MeetingWithContent(
+    val meeting: Meeting,
+    val files: List<ContentVmData>,
+    val links: List<ContentVmData>,
+)
+
 data class MeetingUiState(
     val course: Course? = null,
-    val meetings: List<Meeting> = emptyList(),
+    val meetings: List<MeetingWithContent> = emptyList(),
 )
 
 class MeetingViewModel(
@@ -34,10 +39,23 @@ class MeetingViewModel(
         combine(
             lmsRepository.courses,
             lmsRepository.observeMeetings(courseCode),
-        ) { courses, meetings ->
+            lmsRepository.observeContentVmDatasByCourse(courseCode),
+        ) { courses, meetings, contents ->
+            val fileKeywords = listOf("pdf", "word", "powerpoint", "excel", "archive")
+            val meetingsWithContent =
+                meetings.map { meeting ->
+                    val meetingContents = contents.filter { it.meetingNumber == meeting.meetingNumber }
+                    val (files, links) =
+                        meetingContents.partition { item ->
+                            fileKeywords.any { keyword ->
+                                item.type.contains(keyword)
+                            }
+                        }
+                    MeetingWithContent(meeting, files, links)
+                }
             MeetingUiState(
                 course = courses.find { it.courseCode == courseCode },
-                meetings = meetings,
+                meetings = meetingsWithContent,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -45,38 +63,18 @@ class MeetingViewModel(
             initialValue = MeetingUiState(),
         )
 
-    fun observeContent(meetingUrl: String) =
-        lmsRepository.observeContentVmDatas(meetingUrl).map { contents ->
-            val fileKeywords = listOf("pdf", "word", "powerpoint", "excel", "archive")
-            contents.partition { item ->
-                fileKeywords.any { keyword ->
-                    item.type.contains(keyword)
-                }
-            }
-        }
-
-    fun downloadFile(
-        fileUrl: String,
-        meetingUrl: String,
-    ) {
+    fun downloadFile(content: ContentVmData) {
         val notifId = System.currentTimeMillis().toInt()
         notificationHelper.showDownloadStarted(notifId)
 
         externalScope.launch {
-            val contentVmDatas = lmsRepository.observeContentVmDatas(meetingUrl).first()
-            val contentVmData = contentVmDatas.find { it.contentUrl == fileUrl }
-            if (contentVmData == null) {
-                _snackbarEvent.trySend("Gagal membuat nama berkas")
-                return@launch
-            }
-
-            val courseCode = contentVmData.courseCode
+            val courseCode = content.courseCode
             val fileName =
-                "Materi_${contentVmData.courseName}_Pertemuan-${contentVmData.meetingNumber}_${contentVmData.title}"
+                "Materi_${content.courseName}_Pertemuan-${content.meetingNumber}_${content.title}"
                     .replace(' ', '-')
 
             lmsRepository
-                .downloadFile(fileUrl, fileName) { name, progress ->
+                .downloadFile(content.contentUrl, fileName) { name, progress ->
                     notificationHelper.showDownloadProgress(notifId, name, progress)
                 }.onSuccess {
                     notificationHelper.showDownloadSuccess(notifId, it)

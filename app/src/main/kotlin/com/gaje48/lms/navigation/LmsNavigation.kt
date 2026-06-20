@@ -7,8 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -102,14 +100,6 @@ fun LmsApp(mainViewModel: MainViewModel) {
 
     var hasNotif by remember { mutableStateOf(true) }
     var hasBatteryOpt by remember { mutableStateOf(true) }
-
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
 
     LifecycleResumeEffect(Unit) {
         hasNotif = isNotifGranted(context)

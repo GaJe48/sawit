@@ -87,8 +87,6 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 @Composable
@@ -102,8 +100,7 @@ fun MeetingScreen(
     MeetingScreenStateless(
         course = course,
         meetings = uiState.meetings,
-        observeContent = { viewModel.observeContent(it) },
-        onDownloadFile = { fileUrl, meetingUrl -> viewModel.downloadFile(fileUrl, meetingUrl) },
+        onDownloadFile = { content -> viewModel.downloadFile(content) },
         onBackClick = onBackClick,
     )
 }
@@ -116,9 +113,8 @@ fun MeetingScreen(
 @Composable
 fun MeetingScreenStateless(
     course: Course,
-    meetings: List<Meeting>,
-    observeContent: (String) -> Flow<Pair<List<ContentVmData>, List<ContentVmData>>>,
-    onDownloadFile: (String, String) -> Unit,
+    meetings: List<MeetingWithContent>,
+    onDownloadFile: (ContentVmData) -> Unit,
     onBackClick: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -126,7 +122,7 @@ fun MeetingScreenStateless(
 
     val hazeState = rememberHazeState()
 
-    var expandedMeetingUrl by remember { mutableStateOf<String?>(null) }
+    var expandedMeeting by remember { mutableStateOf<Byte>(0) }
 
     FloatingBlobsBackground {
         Scaffold(
@@ -330,16 +326,17 @@ fun MeetingScreenStateless(
                     )
                 }
 
-                items(items = meetings, key = { meeting -> meeting.meetingUrl }) { meeting ->
-                    val isExpanded = expandedMeetingUrl == meeting.meetingUrl
+                items(items = meetings, key = { item -> item.meeting.meetingNumber }) { (meeting, files, links) ->
+                    val meetingNumber = meeting.meetingNumber
+                    val isExpanded = expandedMeeting == meetingNumber
                     MeetingCard(
-                        index = meeting.meetingNumber,
-                        meetingUrl = meeting.meetingUrl,
+                        index = meetingNumber,
                         isExpanded = isExpanded,
-                        observeContent = observeContent,
-                        onDownloadFile = { onDownloadFile(it, meeting.meetingUrl) },
+                        files = files,
+                        links = links,
+                        onDownloadFile = onDownloadFile,
                         onMeetingClick = {
-                            expandedMeetingUrl = if (isExpanded) null else meeting.meetingUrl
+                            expandedMeeting = if (isExpanded) 0 else meetingNumber
                         },
                     )
                 }
@@ -351,20 +348,14 @@ fun MeetingScreenStateless(
 @Composable
 fun MeetingCard(
     index: Byte,
-    meetingUrl: String,
     isExpanded: Boolean,
-    observeContent: (String) -> Flow<Pair<List<ContentVmData>, List<ContentVmData>>>,
-    onDownloadFile: (String) -> Unit,
+    files: List<ContentVmData>,
+    links: List<ContentVmData>,
+    onDownloadFile: (ContentVmData) -> Unit,
     onMeetingClick: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
-
-    val (files, links) =
-        observeContent(meetingUrl)
-            .collectAsStateWithLifecycle(
-                initialValue = Pair(emptyList(), emptyList()),
-            ).value
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by rememberPressedState(interactionSource)
@@ -469,7 +460,7 @@ fun MeetingCard(
                                     description = stringResource(R.string.meeting_card_desc_download),
                                     icon = iconPainter(item.type),
                                     accentColor = MaterialTheme.colorScheme.primary,
-                                    onClick = { onDownloadFile(item.contentUrl) },
+                                    onClick = { onDownloadFile(item) },
                                 )
                             }
                         }
@@ -616,17 +607,26 @@ fun PreviewMeetingScreen() {
             ),
         meetings =
             listOf(
-                Meeting(
-                    meetingNumber = 1,
-                    meetingUrl = "url-1",
+                MeetingWithContent(
+                    meeting =
+                        Meeting(
+                            meetingNumber = 1,
+                            meetingUrl = "url-1",
+                        ),
+                    files = emptyList(),
+                    links = emptyList(),
                 ),
-                Meeting(
-                    meetingNumber = 2,
-                    meetingUrl = "url-2",
+                MeetingWithContent(
+                    meeting =
+                        Meeting(
+                            meetingNumber = 2,
+                            meetingUrl = "url-2",
+                        ),
+                    files = emptyList(),
+                    links = emptyList(),
                 ),
             ),
-        observeContent = { flowOf(Pair(emptyList(), emptyList())) },
-        onDownloadFile = { _, _ -> },
+        onDownloadFile = { },
         onBackClick = { },
     )
 }
