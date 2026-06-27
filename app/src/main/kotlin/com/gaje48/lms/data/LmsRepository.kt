@@ -43,6 +43,11 @@ class LmsRepository(
             }
         }
 
+    val unsubmittedAssignmentCounts =
+        assignmentDao.observeUnsubmittedCounts().map { list ->
+            list.associate { it.courseCode to it.count }
+        }
+
     fun observeMeetings(courseCode: String) =
         meetingDao.observeByCourse(courseCode).map { entities ->
             entities.map { it.toDomain() }

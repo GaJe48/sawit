@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -118,6 +120,7 @@ fun PreviewDashboardScreen() {
         student = dummyProfile,
         courses = dummyList,
         allAttendances = dummyAttend,
+        unsubmittedCounts = emptyMap(),
         lastSyncText = "Terakhir sinkron: 15 Jun, 16:55",
         onCourseClick = { },
         onAttendanceClick = { },
@@ -139,6 +142,7 @@ fun DashboardScreen(
         student = uiState.student ?: return,
         courses = uiState.courses,
         allAttendances = uiState.allPresences,
+        unsubmittedCounts = uiState.unsubmittedCounts,
         lastSyncText = uiState.lastSyncText,
         onCourseClick = onCourseClick,
         onAttendanceClick = onAttendanceClick,
@@ -157,6 +161,7 @@ fun DashboardScreenStateless(
     student: Student,
     courses: List<Course>,
     allAttendances: List<AttendancesByCourse>,
+    unsubmittedCounts: Map<String, Int>,
     lastSyncText: String,
     onCourseClick: (String) -> Unit,
     onAttendanceClick: (String) -> Unit,
@@ -472,6 +477,7 @@ fun DashboardScreenStateless(
                     CourseCard(
                         course = course,
                         attendancesByCourse = attendancesByCourse,
+                        unsubmittedCount = unsubmittedCounts[course.courseCode] ?: 0,
                         onCourseClick = onCourseClick,
                         onAttendanceClick = onAttendanceClick,
                         onAssignmentClick = onAssignmentClick,
@@ -486,6 +492,7 @@ fun DashboardScreenStateless(
 fun CourseCard(
     course: Course,
     attendancesByCourse: AttendancesByCourse,
+    unsubmittedCount: Int,
     onCourseClick: (String) -> Unit,
     onAttendanceClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
@@ -615,28 +622,45 @@ fun CourseCard(
 
                 Spacer(Modifier.width(12.dp))
 
-                Button(
-                    onClick = {
-                        scope.launch {
-                            delay(150.milliseconds)
-                            onAssignmentClick(course.courseCode)
+                BadgedBox(
+                    badge = {
+                        if (unsubmittedCount > 0) {
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError,
+                            ) {
+                                Text(
+                                    text = unsubmittedCount.toString(),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
                         }
                     },
-                    modifier =
-                        Modifier.graphicsLayer {
-                            scaleX = tgScale
-                            scaleY = tgScale
-                        },
-                    shape = RoundedCornerShape(12.dp),
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                            contentColor = MaterialTheme.colorScheme.secondary,
-                        ),
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                    interactionSource = tgInteraction,
                 ) {
-                    Text(stringResource(R.string.dashboard_assignment_button), fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                delay(150.milliseconds)
+                                onAssignmentClick(course.courseCode)
+                            }
+                        },
+                        modifier =
+                            Modifier.graphicsLayer {
+                                scaleX = tgScale
+                                scaleY = tgScale
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                contentColor = MaterialTheme.colorScheme.secondary,
+                            ),
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                        interactionSource = tgInteraction,
+                    ) {
+                        Text(stringResource(R.string.dashboard_assignment_button), fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    }
                 }
             }
         }

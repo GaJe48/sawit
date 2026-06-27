@@ -8,6 +8,7 @@ import com.gaje48.lms.model.AssignmentNotificationDetail
 import com.gaje48.lms.model.AssignmentScreenData
 import com.gaje48.lms.model.AttendanceVmData
 import com.gaje48.lms.model.ContentVmData
+import com.gaje48.lms.model.CourseAssignmentCount
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -118,6 +119,17 @@ interface AssignmentDao {
 
     @Query("SELECT assignmentUrl FROM assignment")
     suspend fun getAllUrls(): List<String>
+
+    @Query(
+        """
+        SELECT m.courseCode, COUNT(*) as count
+        FROM assignment a
+        JOIN meeting m ON a.meetingUrl = m.meetingUrl
+        WHERE a.isSubmitted = 0
+        GROUP BY m.courseCode
+    """,
+    )
+    fun observeUnsubmittedCounts(): Flow<List<CourseAssignmentCount>>
 
     @Query(
         """

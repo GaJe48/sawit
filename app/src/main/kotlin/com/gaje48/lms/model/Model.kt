@@ -81,6 +81,11 @@ data class AssignmentNotificationDetail(
     val deadline: String,
 )
 
+data class CourseAssignmentCount(
+    val courseCode: String,
+    val count: Int,
+)
+
 @Serializable
 object LoginNavKey : NavKey
 

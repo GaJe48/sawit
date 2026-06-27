@@ -22,6 +22,7 @@ data class DashboardUiState(
     val student: Student? = null,
     val courses: List<Course> = emptyList(),
     val allPresences: List<AttendancesByCourse> = emptyList(),
+    val unsubmittedCounts: Map<String, Int> = emptyMap(),
     val lastSyncText: String = "Belum pernah sinkron",
 )
 
@@ -37,12 +38,14 @@ class DashboardViewModel(
             lmsRepository.student,
             lmsRepository.courses,
             lmsRepository.allAttendances,
+            lmsRepository.unsubmittedAssignmentCounts,
             lmsRepository.lastSyncTime,
-        ) { student, courses, attendances, lastSyncTime ->
+        ) { student, courses, attendances, unsubmittedCounts, lastSyncTime ->
             DashboardUiState(
                 student = student,
                 courses = courses,
                 allPresences = attendances,
+                unsubmittedCounts = unsubmittedCounts,
                 lastSyncText = formatLastSyncTime(lastSyncTime),
             )
         }.stateIn(
