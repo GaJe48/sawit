@@ -1,7 +1,7 @@
 uniffi::setup_scaffolding!();
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, LazyLock},
 };
 
@@ -256,7 +256,7 @@ impl InternetDataSource {
         let dashboard_raw = dashboard_raw_res?;
         let attendances = attendances_res?;
 
-        let (student, mut courses, meetings) = Self::scrape_dashboard(dashboard_raw)?;
+        let (mut student, mut courses, meetings) = Self::scrape_dashboard(dashboard_raw)?;
 
         let content_results = try_join_all(
             meetings
@@ -292,10 +292,58 @@ impl InternetDataSource {
             },
         );
 
+        let mut validation_cache: HashMap<String, Option<String>> = HashMap::new();
+        let mut urls_to_check = HashSet::new();
+
+        if let Some(ref url) = student.profile_picture_url {
+            urls_to_check.insert(url.clone());
+        }
+        for course in &courses {
+            if let Some(ref url) = course.lecturer_profile_picture_url {
+                urls_to_check.insert(url.clone());
+            }
+        }
+
+        let check_futures = urls_to_check
+            .into_iter()
+            .map(|url| async { (url.clone(), self.validate_profile_picture(url).await) });
+        validation_cache.extend(futures::future::join_all(check_futures).await);
+
+        if let Some(ref url) = student.profile_picture_url {
+            student.profile_picture_url = validation_cache[url].clone();
+        }
+        for course in &mut courses {
+            if let Some(ref url) = course.lecturer_profile_picture_url {
+                course.lecturer_profile_picture_url = validation_cache[url].clone();
+            }
+        }
+
         for course in &mut courses {
             if course.lecturer_profile_picture_url.is_none() {
                 course.lecturer_profile_picture_url =
                     lecturer_map.get(&course.lecturer_name).cloned();
+            }
+        }
+
+        let mut new_urls_to_check = HashSet::new();
+        for course in &courses {
+            if let Some(ref url) = course.lecturer_profile_picture_url {
+                if validation_cache.contains_key(url) {
+                    continue;
+                }
+
+                new_urls_to_check.insert(url.clone());
+            }
+        }
+
+        let check_futures = new_urls_to_check
+            .into_iter()
+            .map(|url| async { (url.clone(), self.validate_profile_picture(url).await) });
+        validation_cache.extend(futures::future::join_all(check_futures).await);
+
+        for course in &mut courses {
+            if let Some(ref url) = course.lecturer_profile_picture_url {
+                course.lecturer_profile_picture_url = validation_cache[url].clone();
             }
         }
 
@@ -656,9 +704,6 @@ impl InternetDataSource {
     }
 
     fn parse_student(dashboard_html: &Html) -> Result<Student, LmsError> {
-        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/VHZRamltem9HandlcEJsVFg0bkhkNk1UbEJtaHZRSk5qeHV2QzZsRW1qVnlKaExrU0tGcGl3dm5QWkJ1RzI5UXorWU5nNThkMEJrT01JUDBNZkhLSGlTT0lGT0xybmtidXRtaDJqWU5xK0J4WEpPL2pINzVwSk5kOGF6ZnFXSmg3Ny9seVkyY0NCZkcvYnlZUXlaNm5BPT0=";
-        const PREFIX_NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNV";
-
         static NAME: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse(".user-header p").unwrap());
         static NPM: LazyLock<Selector> =
@@ -717,7 +762,6 @@ impl InternetDataSource {
                     .select(&IMG)
                     .next()
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| *url != NO_PIC && !url.starts_with(PREFIX_NO_PIC))
                     .map(String::from)
             });
 
@@ -731,9 +775,6 @@ impl InternetDataSource {
     }
 
     fn parse_courses(dashboard_html: &Html) -> Result<Vec<Course>, LmsError> {
-        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
-        const PREFIX_NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/Nk12TWFuRTNGbVdVMmk0S2ErU3EyNlk5SHovVTBzcjA2SVRMc3JjQXZPWE5jY0JKMzdXRDZlN1BtNlJaUGZNV";
-
         static CARD: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".box-widget").unwrap());
         static LECTURER: LazyLock<Selector> = LazyLock::new(|| Selector::parse("h3").unwrap());
         static HP: LazyLock<Selector> = LazyLock::new(|| Selector::parse("h5").unwrap());
@@ -765,7 +806,6 @@ impl InternetDataSource {
                     .select(&IMG)
                     .next()
                     .and_then(|img| img.attr("src"))
-                    .filter(|url| *url != NO_PIC && !url.starts_with(PREFIX_NO_PIC))
                     .map(String::from);
 
                 let mut spans = el.select(&INFO);
@@ -1075,9 +1115,6 @@ impl InternetDataSource {
         fk_meeting_url: String,
         pk_assignment_url: String,
     ) -> Result<(AssignmentEntity, Option<(String, String)>), LmsError> {
-        const NO_PIC: &str = "https://lms.unindra.ac.id/media_public/get_gambar/UnMvTVFFTjJFWDFuYkkvSE1pWEhFMVBBRlFtRkpKQm9KeDNaQlZ1L0U3OTBXbDVhZUxQWmtDVkpYVDEwbFdaSg==";
-        const NO_PIC_A: &str = "https://lms.unindra.ac.id/media_public/get_gambar/VFl2UHArM0oySXQ3ZlMwWWxtTkNJcjFOUHJockVCanl1dXQ0MmRoeG80dWRUTHJSbmpwZDlBYm4xMit2ckl1Vg==";
-
         static MSG: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("[style='padding-left:15px']").unwrap());
         static QUESTION: LazyLock<Selector> =
@@ -1139,7 +1176,6 @@ impl InternetDataSource {
             .select(&IMAGE)
             .next()
             .and_then(|el| el.attr("src"))
-            .filter(|url| *url != NO_PIC && *url != NO_PIC_A)
             .map(String::from);
 
         let lecturer_key_value = name.zip(profile_picture_url);
@@ -1157,6 +1193,22 @@ impl InternetDataSource {
             },
             lecturer_key_value,
         ))
+    }
+
+    async fn validate_profile_picture(&self, url: String) -> Option<String> {
+        const NO_PHOTO_SIZE: usize = 20924;
+        const Z_PHOTO_SIZE: usize = 1016;
+
+        if let Ok(response) = self.web.get(&url).send().await {
+            if let Ok(bytes) = response.bytes().await {
+                let bytes_len = bytes.len();
+                if bytes_len == NO_PHOTO_SIZE || bytes_len == Z_PHOTO_SIZE {
+                    return None;
+                }
+            }
+        }
+
+        Some(url)
     }
 }
 
