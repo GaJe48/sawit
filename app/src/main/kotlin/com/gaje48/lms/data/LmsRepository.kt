@@ -114,14 +114,18 @@ class LmsRepository(
             }
         }
 
-    suspend fun syncAssignment(
+    suspend fun syncAssignmentStatus(
         assignmentUrl: String,
-        meetingUrl: String,
     ) = runCatching {
         withContext(Dispatchers.IO) {
-            val assignments = runAuthenticated { internetDataSource.fetchAssignment(assignmentUrl, meetingUrl) }
+            val assignment = runAuthenticated { internetDataSource.fetchAssignment(assignmentUrl) }
 
-            assignmentDao.save(assignments.toEntity())
+            assignmentDao.updateStatus(
+                assignmentUrl = assignment.url,
+                isSubmitted = assignment.isSubmitted,
+                isOverdue = assignment.isOverdue,
+                submissionFileUrl = assignment.answerUrl,
+            )
         }
     }
 

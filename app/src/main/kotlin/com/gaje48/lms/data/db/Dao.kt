@@ -117,6 +117,20 @@ interface AssignmentDao {
     @Upsert
     suspend fun saveAll(assignments: List<AssignmentEntity>)
 
+    @Query(
+        """
+        UPDATE assignment 
+        SET isSubmitted = :isSubmitted, isOverdue = :isOverdue, submissionFileUrl = :submissionFileUrl 
+        WHERE assignmentUrl = :assignmentUrl
+        """,
+    )
+    suspend fun updateStatus(
+        assignmentUrl: String,
+        isSubmitted: Boolean,
+        isOverdue: Boolean,
+        submissionFileUrl: String?,
+    )
+
     @Query("SELECT assignmentUrl FROM assignment")
     suspend fun getAllUrls(): List<String>
 

@@ -431,7 +431,6 @@ impl InternetDataSource {
     async fn fetch_assignment(
         &self,
         assignment_url: String,
-        meeting_url: String,
     ) -> Result<AssignmentEntity, LmsError> {
         static MSG: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
@@ -476,7 +475,7 @@ impl InternetDataSource {
         let is_overdue = html.contains("Waktu Submit sudah berakhir");
 
         Ok(AssignmentEntity {
-            meeting_url: meeting_url,
+            meeting_url: String::new(),
             url: assignment_url,
             message,
             question_url,

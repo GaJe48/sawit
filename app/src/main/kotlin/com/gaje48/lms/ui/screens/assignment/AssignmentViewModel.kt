@@ -48,14 +48,6 @@ class AssignmentViewModel(
         assignmentUrl: String,
     ) {
         val notifId = System.currentTimeMillis().toInt()
-        val meetingUrl =
-            uiState.value.assignmentScreenDatas
-                .firstOrNull()
-                ?.meetingUrl
-        if (meetingUrl == null) {
-            _snackbarEvent.trySend("Data pertemuan tidak ditemukan")
-            return
-        }
 
         notificationHelper.showUploadStarted(notifId)
 
@@ -75,7 +67,7 @@ class AssignmentViewModel(
             notificationHelper.showUploadCompleting(notifId, fileName)
 
             lmsRepository
-                .syncAssignment(assignmentUrl, meetingUrl)
+                .syncAssignmentStatus(assignmentUrl)
                 .onSuccess {
                     notificationHelper.showUploadSuccess(notifId, fileName)
                 }.onFailure { exception ->
