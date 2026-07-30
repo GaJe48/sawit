@@ -41,7 +41,7 @@ data class CourseEntity(
 data class MeetingEntity(
     @PrimaryKey val meetingUrl: String,
     val courseCode: String,
-    val meetingNumber: Byte,
+    val meetingNumber: Int,
 )
 
 @Entity(

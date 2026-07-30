@@ -2,8 +2,10 @@ package com.gaje48.lms.ui.screens.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gaje48.lms.data.AssignmentRepository
+import com.gaje48.lms.data.AttendanceRepository
 import com.gaje48.lms.data.AuthRepository
-import com.gaje48.lms.data.LmsRepository
+import com.gaje48.lms.data.CourseRepository
 import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Student
@@ -28,31 +30,32 @@ data class DashboardUiState(
 
 class DashboardViewModel(
     private val authRepository: AuthRepository,
-    lmsRepository: LmsRepository,
+    courseRepository: CourseRepository,
+    attendanceRepository: AttendanceRepository,
+    assignmentRepository: AssignmentRepository,
 ) : ViewModel() {
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
-    val uiState =
-        combine(
-            lmsRepository.student,
-            lmsRepository.courses,
-            lmsRepository.allAttendances,
-            lmsRepository.unsubmittedAssignmentCounts,
-            lmsRepository.lastSyncTime,
-        ) { student, courses, attendances, unsubmittedCounts, lastSyncTime ->
-            DashboardUiState(
-                student = student,
-                courses = courses,
-                allPresences = attendances,
-                unsubmittedCounts = unsubmittedCounts,
-                lastSyncText = formatLastSyncTime(lastSyncTime),
-            )
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = DashboardUiState(),
+    val uiState = combine(
+        courseRepository.student,
+        courseRepository.courses,
+        attendanceRepository.allAttendances,
+        assignmentRepository.unsubmittedAssignmentCounts,
+        courseRepository.lastSyncTime,
+    ) { student, courses, attendances, unsubmittedCounts, lastSyncTime ->
+        DashboardUiState(
+            student = student,
+            courses = courses,
+            allPresences = attendances,
+            unsubmittedCounts = unsubmittedCounts,
+            lastSyncText = formatLastSyncTime(lastSyncTime),
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = DashboardUiState(),
+    )
 
     fun logout() {
         viewModelScope.launch { authRepository.logout() }

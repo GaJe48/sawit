@@ -39,12 +39,12 @@ data class AttendanceScreenData(
 )
 
 data class AttendanceVmData(
-    val meetingNumber: Byte,
+    val meetingNumber: Int,
     val contentUrl: String,
 )
 
 data class Meeting(
-    val meetingNumber: Byte,
+    val meetingNumber: Int,
     val meetingUrl: String,
 )
 
@@ -57,7 +57,7 @@ data class Content(
 data class ContentVmData(
     val courseCode: String,
     val courseName: String,
-    val meetingNumber: Byte,
+    val meetingNumber: Int,
     val type: String,
     val title: String,
     val contentUrl: String,
@@ -66,7 +66,7 @@ data class ContentVmData(
 data class AssignmentScreenData(
     val assignmentUrl: String,
     val meetingUrl: String,
-    val meetingNumber: Byte,
+    val meetingNumber: Int,
     val description: String?,
     val assignmentFileUrl: String?,
     val deadline: String,
@@ -93,16 +93,10 @@ object LoginNavKey : NavKey
 object DashboardNavKey : NavKey
 
 @Serializable
-data class MeetingNavKey(
-    val courseCode: String,
-) : NavKey
+data class MeetingNavKey(val courseCode: String) : NavKey
 
 @Serializable
-data class AssignmentNavKey(
-    val courseCode: String,
-) : NavKey
+data class AssignmentNavKey(val courseCode: String) : NavKey
 
 @Serializable
-data class AttendanceNavKey(
-    val courseCode: String,
-) : NavKey
+data class AttendanceNavKey(val courseCode: String) : NavKey

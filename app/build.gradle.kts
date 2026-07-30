@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    id("kotlin-parcelize")
     alias(libs.plugins.google.devtools.ksp)
     alias(libs.plugins.ktlint)
 }
@@ -73,6 +74,8 @@ dependencies {
     implementation(libs.tink.android)
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.compose.viewmodel)
+    implementation(libs.kotlin.result)
+    implementation(libs.kotlin.result.coroutines)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
@@ -87,4 +90,11 @@ dependencies {
 ktlint {
     android.set(true)
     ignoreFailures.set(true)
+    additionalEditorconfig.set(
+        mapOf(
+            "ktlint_standard_class-signature" to "disabled",
+            "ktlint_standard_function-signature" to "disabled",
+            "ktlint_standard_multiline-expression-wrapping" to "disabled",
+        ),
+    )
 }

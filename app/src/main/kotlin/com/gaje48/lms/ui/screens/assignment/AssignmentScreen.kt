@@ -105,7 +105,7 @@ fun AssignmentScreen(
     AssignmentScreenStateless(
         courseName = courseName,
         assignmentScreenDatas = uiState.assignmentScreenDatas,
-        onDownloadQuestion = { viewModel.downloadQuestion(it) },
+        onDownloadQuestion = { url, meetingNumber -> viewModel.downloadQuestion(url, courseName, meetingNumber) },
         onUploadSubmission = { uri, assignmentUrl -> viewModel.uploadSubmission(uri, assignmentUrl) },
         onBackClick = onBackClick,
     )
@@ -120,7 +120,7 @@ fun AssignmentScreen(
 fun AssignmentScreenStateless(
     courseName: String,
     assignmentScreenDatas: List<AssignmentScreenData>,
-    onDownloadQuestion: (String) -> Unit,
+    onDownloadQuestion: (String, Int) -> Unit,
     onUploadSubmission: (Uri, String) -> Unit,
     onBackClick: () -> Unit,
 ) {
@@ -226,7 +226,9 @@ fun AssignmentScreenStateless(
                     AssignmentCard(
                         assignmentScreenData = assignmentScreenData,
                         onDownloadClick = {
-                            assignmentScreenData.assignmentFileUrl?.let(onDownloadQuestion)
+                            assignmentScreenData.assignmentFileUrl?.let { url ->
+                                onDownloadQuestion(url, assignmentScreenData.meetingNumber)
+                            }
                         },
                         onViewClick = {
                             assignmentScreenData.submissionFileUrl?.let(uriHandler::openUri)
@@ -487,7 +489,7 @@ fun PreviewAssignmentScreen() {
                     isOverdue = false,
                 ),
             ),
-        onDownloadQuestion = { },
+        onDownloadQuestion = { _, _ -> },
         onUploadSubmission = { _, _ -> },
         onBackClick = { },
     )

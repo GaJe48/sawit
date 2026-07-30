@@ -8,7 +8,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -17,31 +16,28 @@ import com.gaje48.lms.services.LmsSyncScheduler
 import com.gaje48.lms.services.LmsSyncService
 import com.gaje48.lms.ui.MainViewModel
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {
-    private val requestNotificationPermissionLauncher =
+    private val viewModel: MainViewModel by viewModel()
+    private val syncScheduler: LmsSyncScheduler by inject()
+    private val permissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val splashScreen = installSplashScreen()
+        super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val viewModel: MainViewModel by viewModel()
-
-        super.onCreate(savedInstanceState)
         viewModel.checkLoginStatus()
-        splashScreen.setKeepOnScreenCondition { !viewModel.isSplashReady.value }
 
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.isLoggedIn.collect { isLoggedIn ->
-                    val syncScheduler = LmsSyncScheduler(applicationContext)
-
                     if (isLoggedIn) {
                         syncScheduler.scheduleSyncIfNecessary()
                     } else {

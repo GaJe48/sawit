@@ -52,7 +52,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -122,7 +122,7 @@ fun MeetingScreenStateless(
 
     val hazeState = rememberHazeState()
 
-    var expandedMeeting by remember { mutableStateOf<Byte>(0) }
+    var expandedMeeting by remember { mutableIntStateOf(0) }
 
     FloatingBlobsBackground {
         Scaffold(
@@ -347,7 +347,7 @@ fun MeetingScreenStateless(
 
 @Composable
 fun MeetingCard(
-    index: Byte,
+    index: Int,
     isExpanded: Boolean,
     files: List<ContentVmData>,
     links: List<ContentVmData>,
@@ -408,7 +408,7 @@ fun MeetingCard(
 
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.meeting_title_formatted, index.toInt()),
+                        text = stringResource(R.string.meeting_title_formatted, index),
                         fontWeight = FontWeight.ExtraBold,
                         style = MaterialTheme.typography.titleMedium,
                     )

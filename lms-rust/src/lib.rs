@@ -1,16 +1,16 @@
 uniffi::setup_scaffolding!();
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, LazyLock},
-};
-
-use std::os::unix::io::FromRawFd;
-use tokio::io::AsyncWriteExt;
-
 use futures::{StreamExt, future::try_join_all};
 use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{
+        Arc, LazyLock,
+        atomic::{AtomicU32, Ordering},
+    },
+};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, uniffi::Record)]
 struct Student {
@@ -77,10 +77,21 @@ struct LmsEntity {
     assignments: Vec<AssignmentEntity>,
 }
 
-#[derive(uniffi::Object)]
-struct InternetDataSource {
-    web: Client,
-    base_url: String,
+#[derive(uniffi::Record)]
+struct Credentials {
+    nim: String,
+    pwd: String,
+}
+
+#[uniffi::export(foreign)]
+trait NotifCallback: Send + Sync {
+    fn on_progress(&self, file_name: String, progress: i32);
+}
+
+#[uniffi::export(foreign)]
+#[async_trait::async_trait]
+trait CredentialProvider: Send + Sync {
+    async fn get_credentials(&self) -> Option<Credentials>;
 }
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -91,16 +102,18 @@ enum LmsError {
     NetworkError { msg: String },
     #[error("Network status error ({status_code}): {msg}")]
     NetworkStatusError { status_code: u16, msg: String },
-    #[error("Credential error: Invalid username or password")]
-    CredentialError,
-    #[error("Captcha error: Incorrect CAPTCHA answer")]
-    CaptchaError,
+    #[error("Invalid username or password")]
+    InvalidCredentialsError,
+    #[error("No credentials found in storage")]
+    MissingCredentialsError,
+    #[error("Incorrect CAPTCHA answer")]
+    InvalidCaptchaError,
     #[error("Captcha solver error: {msg}")]
     CaptchaSolverError { msg: String },
     #[error("Parser error: {msg}")]
     ParserError { msg: String },
-    #[error("Email Anda belum terdaftar")]
-    EmailNotRegisteredError,
+    #[error("Email is not registered")]
+    UnregisteredEmailError,
 }
 
 impl From<reqwest::Error> for LmsError {
@@ -111,24 +124,22 @@ impl From<reqwest::Error> for LmsError {
     }
 }
 
-#[uniffi::export(callback_interface)]
-#[async_trait::async_trait]
-trait DownloadCallback: Send + Sync {
-    async fn on_start(&self, file_name: String) -> Result<i32, LmsError>;
-    fn on_progress(&self, file_name: String, progress: f32);
+#[derive(uniffi::Object)]
+struct InternetDataSource {
+    web: Client,
+    base_url: String,
+    credential_provider: Arc<dyn CredentialProvider>,
+    reauth_mutex: tokio::sync::Mutex<()>,
+    token_version: AtomicU32,
 }
 
-#[uniffi::export(callback_interface)]
-trait UploadCallback: Send + Sync {
-    fn on_progress(&self, file_name: String, progress: f32);
-}
-
-#[uniffi::export(async_runtime = "tokio")]
+#[uniffi::export]
 impl InternetDataSource {
     #[uniffi::constructor]
-    fn new() -> Self {
+    fn new(credential_provider: Arc<dyn CredentialProvider>) -> Self {
         let root_store =
             rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+
         let tls_config = rustls::ClientConfig::builder()
             .with_root_certificates(root_store)
             .with_no_client_auth();
@@ -143,9 +154,53 @@ impl InternetDataSource {
             .unwrap_or("https://lms.unindra.ac.id")
             .to_string();
 
-        Self { web, base_url }
+        Self {
+            web,
+            base_url,
+            credential_provider,
+            reauth_mutex: tokio::sync::Mutex::new(()),
+            token_version: AtomicU32::new(0),
+        }
     }
+}
 
+impl InternetDataSource {
+    async fn wrapper_auth(&self, path: &str) -> Result<reqwest::Response, LmsError> {
+        let current_version = self.token_version.load(Ordering::Relaxed);
+
+        let url = if path.starts_with("http") {
+            path.to_string()
+        } else {
+            format!("{}{}", self.base_url, path)
+        };
+
+        let res = self.web.get(&url).send().await?;
+
+        if !res.url().path().contains("login_new") {
+            return Ok(res);
+        }
+
+        let _guard = self.reauth_mutex.lock().await;
+        let new_version = self.token_version.load(Ordering::Relaxed);
+
+        if new_version == current_version {
+            let cred = self
+                .credential_provider
+                .get_credentials()
+                .await
+                .ok_or(LmsError::MissingCredentialsError)?;
+            self.cookie_renewed(cred.nim, cred.pwd).await?;
+
+            self.token_version.fetch_add(1, Ordering::Relaxed);
+        }
+
+        drop(_guard);
+        Ok(self.web.get(&url).send().await?)
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+impl InternetDataSource {
     async fn cookie_renewed(&self, nim: String, pwd: String) -> Result<(), LmsError> {
         static INPUT: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("[type=hidden]:nth-child(2)").unwrap());
@@ -194,10 +249,10 @@ impl InternetDataSource {
             .await?;
 
         if response.contains("Username atau password salah") {
-            return Err(LmsError::CredentialError);
+            return Err(LmsError::InvalidCredentialsError);
         }
         if response.contains("Jawaban Captcha Salah") {
-            return Err(LmsError::CaptchaError);
+            return Err(LmsError::InvalidCaptchaError);
         }
 
         Ok(())
@@ -230,25 +285,17 @@ impl InternetDataSource {
             .await?;
 
         if login_page_html.contains("Email Anda belum terdaftar") {
-            return Err(LmsError::EmailNotRegisteredError);
+            return Err(LmsError::UnregisteredEmailError);
         }
         if login_page_html.contains("Jawaban Captcha Salah") {
-            return Err(LmsError::CaptchaError);
+            return Err(LmsError::InvalidCaptchaError);
         }
 
         Ok(())
     }
 
     async fn fetch_all(&self) -> Result<LmsEntity, LmsError> {
-        let dashboard_html_future = async {
-            self.web
-                .get(format!("{}/member", self.base_url))
-                .send()
-                .await?
-                .text()
-                .await
-        };
-
+        let dashboard_html_future = self.wrapper_auth("/member").await?.text();
         let attendances_future = self.fetch_attendances();
 
         let (dashboard_raw_res, attendances_res) =
@@ -366,13 +413,7 @@ impl InternetDataSource {
             LazyLock::new(|| Selector::parse("td:nth-child(n+2):nth-child(-n+3)").unwrap());
         static ATTEND: LazyLock<Selector> = LazyLock::new(|| Selector::parse(".fa").unwrap());
 
-        let attend_html = self
-            .web
-            .get(format!("{}/presensi", self.base_url))
-            .send()
-            .await?
-            .text()
-            .await?;
+        let attend_html = self.wrapper_auth("/presensi").await?.text().await?;
 
         let (kode_jadwal_id, nim_id) = {
             let attend_parser = Html::parse_document(&attend_html);
@@ -428,10 +469,7 @@ impl InternetDataSource {
         Ok(list)
     }
 
-    async fn fetch_assignment(
-        &self,
-        assignment_url: String,
-    ) -> Result<AssignmentEntity, LmsError> {
+    async fn fetch_assignment(&self, assignment_url: String) -> Result<AssignmentEntity, LmsError> {
         static MSG: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-default p").unwrap());
         static QUESTION: LazyLock<Selector> =
@@ -442,7 +480,7 @@ impl InternetDataSource {
         static ANSWER: LazyLock<Selector> =
             LazyLock::new(|| Selector::parse("div.callout-white-warning a").unwrap());
 
-        let html = self.web.get(&assignment_url).send().await?.text().await?;
+        let html = self.wrapper_auth(&assignment_url).await?.text().await?;
 
         let document = Html::parse_document(&html);
 
@@ -489,7 +527,7 @@ impl InternetDataSource {
     async fn execute_attendances(&self, urls: Vec<String>) -> Result<(), LmsError> {
         let mut last_status = 0u16;
         for url in &urls {
-            let response = self.web.get(url).send().await?;
+            let response = self.wrapper_auth(url).await?;
             let status = response.status();
 
             if status.is_success() {
@@ -509,16 +547,17 @@ impl InternetDataSource {
 
     async fn download_file(
         &self,
-        file_url: String,
-        raw_file_name: String,
-        callback: Box<dyn DownloadCallback>,
+        file_descriptor: i32,
+        url: String,
+        base_name: String,
+        callback: Arc<dyn NotifCallback>,
     ) -> Result<String, LmsError> {
-        let mut response = self.web.get(&file_url).send().await?;
+        let mut response = self.wrapper_auth(&url).await?;
 
         if !response.status().is_success() {
             return Err(LmsError::NetworkStatusError {
                 status_code: response.status().as_u16(),
-                msg: format!("File is not available on the server at {}", file_url),
+                msg: format!("File is not available on the server at {}", url),
             });
         }
 
@@ -537,20 +576,16 @@ impl InternetDataSource {
                 msg: "Could not determine file type from URL or magic number".to_string(),
             })?;
 
-        let file_name = format!("{}.{}", raw_file_name, ext);
+        let file_name = format!("{}.{}", base_name, ext);
 
         let total_size = response
             .headers()
             .get("content-length")
-            .and_then(|v| v.to_str().ok()?.parse::<u64>().ok())
+            .and_then(|v| v.to_str().ok()?.parse::<u32>().ok())
             .unwrap_or(0);
 
-        let raw_fd = callback.on_start(file_name.clone()).await?;
-
-        let file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
+        let file = file_from_raw_fd(file_descriptor);
         let mut tokio_file = tokio::fs::File::from_std(file);
-
-        let mut downloaded = 0u64;
 
         tokio_file
             .write_all(&first_chunk)
@@ -558,10 +593,19 @@ impl InternetDataSource {
             .map_err(|e| LmsError::StorageError {
                 msg: format!("Failed to write first file chunk to disk: {}", e),
             })?;
-        downloaded += first_chunk.len() as u64;
-        if total_size > 0 {
-            let progress = downloaded as f32 / total_size as f32;
+
+        let mut downloaded = first_chunk.len();
+        let mut last_progress = -1;
+
+        let progress = if total_size > 0 {
+            (downloaded as f32 / total_size as f32 * 100.0) as i32
+        } else {
+            -1
+        };
+
+        if progress > last_progress {
             callback.on_progress(file_name.clone(), progress);
+            last_progress = progress;
         }
 
         while let Some(chunk) = response.chunk().await? {
@@ -571,10 +615,18 @@ impl InternetDataSource {
                 .map_err(|e| LmsError::StorageError {
                     msg: format!("Failed to write file chunk to disk: {}", e),
                 })?;
-            downloaded += chunk.len() as u64;
-            if total_size > 0 {
-                let progress = downloaded as f32 / total_size as f32;
+
+            downloaded += chunk.len();
+
+            let progress = if total_size > 0 {
+                (downloaded as f32 / total_size as f32 * 100.0) as i32
+            } else {
+                -1
+            };
+
+            if progress > last_progress {
                 callback.on_progress(file_name.clone(), progress);
+                last_progress = progress;
             }
         }
 
@@ -585,7 +637,6 @@ impl InternetDataSource {
                 msg: format!("Failed to sync downloaded file to storage: {}", e),
             })?;
 
-        callback.on_progress(file_name.clone(), 1.0);
         Ok(file_name)
     }
 
@@ -593,11 +644,11 @@ impl InternetDataSource {
         &self,
         assignment_url: String,
         file_name: String,
-        file_size: u64,
+        file_size: i32,
         fd: i32,
-        callback: Box<dyn UploadCallback>,
+        callback: Arc<dyn NotifCallback>,
     ) -> Result<String, LmsError> {
-        let html_form = self.web.get(&assignment_url).send().await?.text().await?;
+        let html_form = self.wrapper_auth(&assignment_url).await?.text().await?;
 
         let (id_tugas, h_kode, id_aktifitas) = {
             static ID_TUGAS_SEL: LazyLock<Selector> =
@@ -639,29 +690,36 @@ impl InternetDataSource {
             (id_tugas, h_kode, id_aktifitas)
         };
 
-        let file = unsafe { std::fs::File::from_raw_fd(fd) };
+        let file = file_from_raw_fd(fd);
         let tokio_file = tokio::fs::File::from_std(file);
         let reader_stream = tokio_util::io::ReaderStream::new(tokio_file);
 
-        let callback_arc = Arc::new(callback);
-        let stream_callback = Arc::clone(&callback_arc);
         let stream_file_name = file_name.clone();
 
-        let mut uploaded: u64 = 0;
+        let mut uploaded = 0;
+        let mut last_progress = -1;
 
         let progress_stream = reader_stream.inspect(move |chunk| {
-            if let Ok(bytes) = chunk {
-                uploaded += bytes.len() as u64;
+            let Ok(bytes) = chunk else {
+                return;
+            };
 
-                if file_size > 0 {
-                    let progress = (uploaded as f32) / (file_size as f32);
-                    stream_callback.on_progress(stream_file_name.clone(), progress);
-                }
+            uploaded += bytes.len();
+
+            let progress = if file_size > 0 {
+                (uploaded as f32 / file_size as f32 * 100.0) as i32
+            } else {
+                -1
+            };
+
+            if progress > last_progress {
+                callback.on_progress(stream_file_name.clone(), progress);
+                last_progress = progress;
             }
         });
 
         let body = reqwest::Body::wrap_stream(progress_stream);
-        let part = reqwest::multipart::Part::stream_with_length(body, file_size)
+        let part = reqwest::multipart::Part::stream_with_length(body, file_size as u64)
             .file_name(file_name.clone());
 
         let form = reqwest::multipart::Form::new()
@@ -678,7 +736,6 @@ impl InternetDataSource {
             .await?;
 
         if res.status().is_success() {
-            callback_arc.on_progress(file_name.clone(), 1.0);
             Ok(file_name)
         } else {
             Err(LmsError::NetworkStatusError {
@@ -1308,9 +1365,30 @@ fn format_title_case(s: &str) -> String {
     result
 }
 
+fn file_from_raw_fd(fd: i32) -> std::fs::File {
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::io::FromRawFd;
+        std::fs::File::from_raw_fd(fd)
+    }
+    #[cfg(windows)]
+    unsafe {
+        use std::os::windows::io::FromRawHandle;
+        std::fs::File::from_raw_handle(fd as _)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct DummyCredentialProvider;
+    #[async_trait::async_trait]
+    impl CredentialProvider for DummyCredentialProvider {
+        async fn get_credentials(&self) -> Option<Credentials> {
+            None
+        }
+    }
 
     async fn login_helper(internet_data_source: &InternetDataSource) {
         let nim = std::env::var("LMS_NPM").unwrap_or_else(|_| "dummy_npm".to_string());
@@ -1396,7 +1474,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "login ke LMS asli, membutuhkan jaringan, captcha OCR, dan kredensial di cookie_renewed"]
     async fn parse_student_with_cookie() {
-        let internet_data_source = InternetDataSource::new();
+        let internet_data_source = InternetDataSource::new(Arc::new(DummyCredentialProvider));
 
         login_helper(&internet_data_source).await;
 
@@ -1515,7 +1593,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 12)]
     #[ignore = "login ke LMS asli, membutuhkan jaringan, captcha OCR, dan kredensial di cookie_renewed"]
     async fn fetch_attendances_with_cookie() {
-        let internet_data_source = InternetDataSource::new();
+        let internet_data_source = InternetDataSource::new(Arc::new(DummyCredentialProvider));
 
         login_helper(&internet_data_source).await;
         let result = internet_data_source.fetch_attendances().await.unwrap();
@@ -1557,7 +1635,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "login ke LMS asli, membutuhkan jaringan, captcha OCR, dan kredensial di cookie_renewed"]
     async fn fetch_attendances_by_course_with_cookie() {
-        let internet_data_source = InternetDataSource::new();
+        let internet_data_source = InternetDataSource::new(Arc::new(DummyCredentialProvider));
 
         login_helper(&internet_data_source).await;
 
@@ -1587,7 +1665,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "login ke LMS asli, membutuhkan jaringan, captcha OCR, dan kredensial di cookie_renewed"]
     async fn fetch_contents_with_cookie() {
-        let internet_data_source = InternetDataSource::new();
+        let internet_data_source = InternetDataSource::new(Arc::new(DummyCredentialProvider));
 
         login_helper(&internet_data_source).await;
 
@@ -1614,7 +1692,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "login ke LMS asli, membutuhkan jaringan, captcha OCR, dan kredensial di cookie_renewed"]
     async fn fetch_assignments_with_cookie() {
-        let internet_data_source = InternetDataSource::new();
+        let internet_data_source = InternetDataSource::new(Arc::new(DummyCredentialProvider));
 
         login_helper(&internet_data_source).await;
 
@@ -1631,10 +1709,11 @@ mod tests {
             "https://lms.unindra.ac.id/member_tugas/kelas/ZGNaTjQ1ZTZpV0xOcWdBVU1vbjZoTGRJUzJxc3FQTDNIQ0thK0hmc3A4cUhSRVZOL0tiLy9ic09xWmJNM0VnRHc2anlhMnFDN0YzbVA0aDFWcnltRGwxMW04ZFBLNjF2MU9BdDU1OVBrcGc9"
         );
     }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 12)]
     #[ignore = "login ke LMS asli, membutuhkan jaringan, captcha OCR, dan kredensial di cookie_renewed"]
     async fn fetch_all_with_cookie() {
-        let internet_data_source = InternetDataSource::new();
+        let internet_data_source = InternetDataSource::new(Arc::new(DummyCredentialProvider));
 
         login_helper(&internet_data_source).await;
 

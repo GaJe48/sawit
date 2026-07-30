@@ -454,4 +454,6 @@ private fun isNotifGranted(context: Context): Boolean {
 }
 
 private fun isIgnoreBattery(context: Context) =
-    context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+    context
+        .getSystemService(PowerManager::class.java)
+        .isIgnoringBatteryOptimizations(context.packageName)

@@ -168,6 +168,9 @@ interface AttendanceDao {
     @Query("SELECT * FROM attendance WHERE courseCode = :foreignKey")
     fun observeByCourse(foreignKey: String): Flow<List<AttendanceEntity>>
 
+    @Query("SELECT isAttended FROM attendance WHERE courseCode = :courseCode AND attendanceIndex = :attendanceIndex")
+    suspend fun isAttended(courseCode: String, attendanceIndex: Int): Boolean
+
     @Upsert
     suspend fun save(attendances: List<AttendanceEntity>)
 }

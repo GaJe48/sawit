@@ -56,7 +56,7 @@ fun uniffi.lms_rust.MeetingEntity.toEntity() =
     MeetingEntity(
         url,
         courseCode,
-        number,
+        number.toInt(),
     )
 
 fun uniffi.lms_rust.AttendanceEntity.toEntity() =

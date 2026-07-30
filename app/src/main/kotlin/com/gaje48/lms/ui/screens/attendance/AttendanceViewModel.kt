@@ -2,8 +2,10 @@ package com.gaje48.lms.ui.screens.attendance
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gaje48.lms.data.LmsRepository
+import com.gaje48.lms.data.AttendanceRepository
+import com.gaje48.lms.data.CourseRepository
 import com.gaje48.lms.model.AttendanceScreenData
+import com.github.michaelbull.result.onErr
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,58 +22,56 @@ data class AttendanceUiState(
 
 class AttendanceViewModel(
     private val courseCode: String,
-    private val lmsRepository: LmsRepository,
+    courseRepository: CourseRepository,
+    private val attendanceRepository: AttendanceRepository,
 ) : ViewModel() {
     private val _snackbarEvent = Channel<String>(Channel.CONFLATED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
     private val _isProcessingAttendance = MutableStateFlow(false)
 
-    val uiState =
-        combine(
-            lmsRepository.courses,
-            lmsRepository.observeAttendances(courseCode),
-            lmsRepository.observeAttendanceVmDatas(courseCode),
-            _isProcessingAttendance,
-        ) { courses, attendances, attendanceVmDatas, isProcessingAttendance ->
-            val attendanceVmDataMap =
-                attendanceVmDatas
-                    .groupBy({ it.meetingNumber }, { it.contentUrl })
+    val uiState = combine(
+        courseRepository.courses,
+        attendanceRepository.observeAttendances(courseCode),
+        attendanceRepository.observeAttendanceVmDatas(courseCode),
+        _isProcessingAttendance,
+    ) { courses, attendances, attendanceVmDatas, isProcessingAttendance ->
+        val attendanceVmDataMap = attendanceVmDatas
+            .groupBy({ it.meetingNumber }, { it.contentUrl })
 
-            val attendanceScreenDatas =
-                attendances.mapIndexed { index, isAttended ->
-                    val meetingNumber = (index + 1).toByte()
+        val attendanceScreenDatas = attendances.mapIndexed { index, isAttended ->
+            val meetingNumber = index + 1
 
-                    AttendanceScreenData(
-                        isAttended = isAttended,
-                        contentUrls = attendanceVmDataMap[meetingNumber] ?: emptyList(),
-                    )
-                }
-
-            AttendanceUiState(
-                courseName = courses.find { it.courseCode == courseCode }?.courseName,
-                attendanceScreenDatas = attendanceScreenDatas,
-                isProcessingAttendance = isProcessingAttendance,
+            AttendanceScreenData(
+                isAttended = isAttended,
+                contentUrls = attendanceVmDataMap[meetingNumber] ?: emptyList(),
             )
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = AttendanceUiState(),
+        }
+
+        AttendanceUiState(
+            courseName = courses.find { it.courseCode == courseCode }?.courseName,
+            attendanceScreenDatas = attendanceScreenDatas,
+            isProcessingAttendance = isProcessingAttendance,
         )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = AttendanceUiState(),
+    )
 
     fun processAttendance(urls: List<String>) {
         _isProcessingAttendance.value = true
 
         viewModelScope.launch {
-            lmsRepository.executeAttendances(urls).onFailure { exception ->
-                _snackbarEvent.trySend(exception.message ?: "Gagal melakukan absensi")
+            attendanceRepository.executeAttendances(urls).onErr {
+                _snackbarEvent.trySend(it.message ?: "Gagal melakukan absensi")
 
                 _isProcessingAttendance.value = false
                 return@launch
             }
 
-            lmsRepository.syncAttendancesByCourse(courseCode).onFailure { exception ->
-                _snackbarEvent.trySend(exception.message ?: "Gagal memperbarui data")
+            attendanceRepository.syncAttendancesByCourse(courseCode).onErr {
+                _snackbarEvent.trySend(it.message ?: "Gagal memperbarui data")
             }
 
             _isProcessingAttendance.value = false

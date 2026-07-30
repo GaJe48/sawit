@@ -2,7 +2,10 @@ package com.gaje48.lms.data
 
 import com.gaje48.lms.data.db.CourseDao
 import com.gaje48.lms.data.db.StudentDao
+import com.github.michaelbull.result.onErr
+import com.github.michaelbull.result.runCatching
 import kotlinx.coroutines.flow.map
+import uniffi.lms_rust.LmsException
 
 class AuthRepository(
     private val internetDataSource: uniffi.lms_rust.InternetDataSource,
@@ -21,26 +24,16 @@ class AuthRepository(
         courseDao.clearAll()
     }
 
-    suspend fun checkLoginStatus(
-        nim: String,
-        pwd: String,
-    ) = runCatching { internetDataSource.cookieRenewed(nim, pwd) }.onFailure { exception ->
-        if (exception is uniffi.lms_rust.LmsException.CredentialException) {
-            logout()
+    suspend fun checkLoginStatus(nim: String, pwd: String) =
+        runCatching { internetDataSource.cookieRenewed(nim, pwd) }.onErr { throwable ->
+            if (throwable is LmsException.InvalidCredentialsException) {
+                logout()
+            }
         }
-    }
 
-    suspend fun login(
-        nim: String,
-        pwd: String,
-    ) = runCatching { internetDataSource.cookieRenewed(nim, pwd) }
+    suspend fun login(nim: String, pwd: String) = runCatching { internetDataSource.cookieRenewed(nim, pwd) }
 
     suspend fun requestResetPassword(email: String) = runCatching { internetDataSource.requestResetPassword(email) }
 
-    suspend fun saveCredentials(
-        nim: String,
-        pwd: String,
-    ) {
-        localDataSource.saveCredentials(nim, pwd)
-    }
+    suspend fun saveCredentials(nim: String, pwd: String) = localDataSource.saveCredentials(nim, pwd)
 }

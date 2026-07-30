@@ -3,13 +3,15 @@ package com.gaje48.lms.ui.screens.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gaje48.lms.data.AuthRepository
-import com.gaje48.lms.data.LmsRepository
+import com.gaje48.lms.data.CourseRepository
 import com.gaje48.lms.model.AuthStatus
+import com.github.michaelbull.result.onErr
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import uniffi.lms_rust.LmsException
 import kotlin.time.Duration.Companion.milliseconds
 
 data class LoginUiState(
@@ -19,45 +21,35 @@ data class LoginUiState(
 
 class LoginViewModel(
     private val authRepository: AuthRepository,
-    private val lmsRepository: LmsRepository,
+    private val courseRepository: CourseRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState = _uiState.asStateFlow()
 
     private fun setError(message: String) {
-        _uiState.update {
-            it.copy(
-                errorMessage = message,
-                status = AuthStatus.IDLE,
-            )
-        }
+        _uiState.update { it.copy(errorMessage = message, status = AuthStatus.IDLE) }
     }
 
     fun resetError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    fun manualLogin(
-        nim: String,
-        pwd: String,
-    ) {
+    fun manualLogin(nim: String, pwd: String) {
         _uiState.update { it.copy(status = AuthStatus.LOADING, errorMessage = null) }
 
         viewModelScope.launch {
-            val authResult = authRepository.login(nim, pwd)
-            authResult.onFailure { exception ->
+            authRepository.login(nim, pwd).onErr { throwable ->
                 val friendlyMessage =
-                    when (exception) {
-                        is uniffi.lms_rust.LmsException.CredentialException -> "NIM atau Password salah"
-                        is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah"
-                        else -> exception.message ?: "Terjadi kesalahan saat login"
+                    when (throwable) {
+                        is LmsException.InvalidCredentialsException -> "NIM atau Password salah"
+                        is LmsException.InvalidCaptchaException -> "Jawaban Captcha salah"
+                        else -> throwable.message ?: "Terjadi kesalahan saat login"
                     }
                 setError(friendlyMessage)
                 return@launch
             }
 
-            val lmsResult = lmsRepository.login()
-            lmsResult.onFailure {
+            courseRepository.syncAll().onErr {
                 setError(it.message ?: "Gagal memuat data akademik")
                 return@launch
             }
@@ -70,36 +62,22 @@ class LoginViewModel(
     }
 
     fun requestResetPassword(email: String) {
-        _uiState.update {
-            it.copy(
-                status = AuthStatus.LOADING,
-                errorMessage = null,
-            )
-        }
+        _uiState.update { it.copy(status = AuthStatus.LOADING, errorMessage = null) }
 
         viewModelScope.launch {
-            val result = authRepository.requestResetPassword(email)
-            result
-                .onSuccess {
-                    _uiState.update {
-                        it.copy(
-                            status = AuthStatus.SUCCESS,
-                        )
+            authRepository.requestResetPassword(email).onErr { throwable ->
+                val friendlyMessage =
+                    when (throwable) {
+                        is LmsException.InvalidCaptchaException -> "Jawaban Captcha salah, silakan coba lagi"
+                        is LmsException.UnregisteredEmailException -> "Email Anda belum terdaftar"
+                        else -> throwable.message ?: "Terjadi kesalahan saat memproses reset password"
                     }
-                }.onFailure { exception ->
-                    val friendlyMessage =
-                        when (exception) {
-                            is uniffi.lms_rust.LmsException.CaptchaException -> "Jawaban Captcha salah, silakan coba lagi"
-                            is uniffi.lms_rust.LmsException.EmailNotRegisteredException -> "Email Anda belum terdaftar"
-                            else -> exception.message ?: "Terjadi kesalahan saat memproses reset password"
-                        }
-                    _uiState.update {
-                        it.copy(
-                            status = AuthStatus.IDLE,
-                            errorMessage = friendlyMessage,
-                        )
-                    }
-                }
+                _uiState.update { it.copy(status = AuthStatus.IDLE, errorMessage = friendlyMessage) }
+
+                return@launch
+            }
+
+            _uiState.update { it.copy(status = AuthStatus.SUCCESS) }
         }
     }
 }
