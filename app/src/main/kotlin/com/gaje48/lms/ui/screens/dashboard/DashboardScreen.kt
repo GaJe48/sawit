@@ -62,8 +62,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.gaje48.lms.R
 import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
@@ -130,13 +130,8 @@ fun PreviewDashboardScreen() {
 }
 
 @Composable
-fun DashboardScreen(
-    viewModel: DashboardViewModel,
-    onCourseClick: (String) -> Unit,
-    onAttendanceClick: (String) -> Unit,
-    onAssignmentClick: (String) -> Unit,
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+fun DashboardScreen(component: DashboardComponent) {
+    val uiState by component.uiState.subscribeAsState()
 
     DashboardScreenStateless(
         student = uiState.student ?: return,
@@ -144,10 +139,10 @@ fun DashboardScreen(
         allAttendances = uiState.allPresences,
         unsubmittedCounts = uiState.unsubmittedCounts,
         lastSyncText = uiState.lastSyncText,
-        onCourseClick = onCourseClick,
-        onAttendanceClick = onAttendanceClick,
-        onAssignmentClick = onAssignmentClick,
-        onLogout = { viewModel.logout() },
+        onCourseClick = { component.onCourseClick(it) },
+        onAttendanceClick = { component.onAttendanceClick(it) },
+        onAssignmentClick = { component.onAssignmentClick(it) },
+        onLogout = { component.logout() },
     )
 }
 

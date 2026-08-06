@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import org.koin.android.ext.android.inject
+import org.koin.android.ext.android.get
 import java.util.concurrent.atomic.AtomicInteger
 
 class LmsDownloadService : Service() {
@@ -25,9 +25,9 @@ class LmsDownloadService : Service() {
         private const val FOREGROUND_SERVICE_ID = 2
     }
 
-    private val transferRepository: TransferRepository by inject()
-    private val attendanceRepository: AttendanceRepository by inject()
-    private val notificationHelper: NotificationHelper by inject()
+    private val transferRepository: TransferRepository = get()
+    private val attendanceRepository: AttendanceRepository = get()
+    private val notificationHelper: NotificationHelper = get()
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -73,15 +73,13 @@ class LmsDownloadService : Service() {
             val isAlreadyAttended = attendanceRepository.isAttendanceAttended(courseCode, meetingNumber)
 
             if (!isAlreadyAttended) {
-                attendanceRepository
-                    .syncAttendancesByCourse(courseCode)
-                    .onErr { throwable ->
-                        val msg = throwable.message ?: "Gagal memperbarui data absensi"
-                        notificationHelper.showFailure(TransferType.DOWNLOAD, notifId, msg)
+                attendanceRepository.syncAttendancesByCourse(courseCode).onErr { throwable ->
+                    val msg = throwable.message ?: "Gagal memperbarui data absensi"
+                    notificationHelper.showFailure(TransferType.DOWNLOAD, notifId, msg)
 
-                        checkAndStopService()
-                        return@launch
-                    }
+                    checkAndStopService()
+                    return@launch
+                }
             }
 
             notificationHelper.showSuccess(TransferType.DOWNLOAD, notifId, fileName)

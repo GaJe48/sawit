@@ -71,8 +71,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.gaje48.lms.R
 import com.gaje48.lms.model.ContentVmData
 import com.gaje48.lms.model.Course
@@ -90,18 +90,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun MeetingScreen(
-    viewModel: MeetingViewModel,
-    onBackClick: () -> Unit,
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+fun MeetingScreen(component: MeetingComponent) {
+    val uiState by component.uiState.subscribeAsState()
     val course = uiState.course ?: return
 
     MeetingScreenStateless(
         course = course,
         meetings = uiState.meetings,
-        onDownloadFile = { content -> viewModel.downloadFile(content) },
-        onBackClick = onBackClick,
+        onDownloadFile = { content -> component.downloadFile(content) },
+        onBackClick = { component.onBackClick() },
     )
 }
 

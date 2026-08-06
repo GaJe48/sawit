@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import org.koin.android.ext.android.inject
+import org.koin.android.ext.android.get
 import java.util.concurrent.atomic.AtomicInteger
 
 class LmsUploadService : Service() {
@@ -25,9 +25,9 @@ class LmsUploadService : Service() {
         private const val FOREGROUND_SERVICE_ID = 3
     }
 
-    private val transferRepository: TransferRepository by inject()
-    private val assignmentRepository: AssignmentRepository by inject()
-    private val notificationHelper: NotificationHelper by inject()
+    private val transferRepository: TransferRepository = get()
+    private val assignmentRepository: AssignmentRepository = get()
+    private val notificationHelper: NotificationHelper = get()
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 

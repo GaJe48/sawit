@@ -62,7 +62,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.gaje48.lms.R
 import com.gaje48.lms.model.AttendanceScreenData
 import com.gaje48.lms.ui.components.EmptyGif
@@ -95,18 +95,15 @@ fun PreviewAttendanceScreen() {
 }
 
 @Composable
-fun AttendanceScreen(
-    viewModel: AttendanceViewModel,
-    onBackClick: () -> Unit,
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+fun AttendanceScreen(component: AttendanceComponent) {
+    val uiState by component.uiState.subscribeAsState()
 
     AttendanceScreenStateless(
         courseName = uiState.courseName ?: return,
         attendanceScreenDatas = uiState.attendanceScreenDatas,
         isProcessingAttendance = uiState.isProcessingAttendance,
-        onAttendClick = { viewModel.processAttendance(it) },
-        onBackClick = onBackClick,
+        onAttendClick = { component.processAttendance(it) },
+        onBackClick = { component.onBackClick() },
     )
 }
 

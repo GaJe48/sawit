@@ -67,7 +67,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.gaje48.lms.R
 import com.gaje48.lms.model.AuthStatus
 import com.gaje48.lms.ui.components.FloatingBlobsBackground
@@ -79,15 +79,15 @@ import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
-fun LoginScreen(viewModel: LoginViewModel) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+fun LoginScreen(component: LoginComponent) {
+    val uiState by component.uiState.subscribeAsState()
 
     LoginScreenStateless(
         status = uiState.status,
         errorMessage = uiState.errorMessage,
-        onLoginClick = { nim, password -> viewModel.manualLogin(nim, password) },
-        onResetPasswordClick = { email -> viewModel.requestResetPassword(email) },
-        onResetStatus = { viewModel.resetError() },
+        onLoginClick = { nim, password -> component.manualLogin(nim, password) },
+        onResetPasswordClick = { email -> component.requestResetPassword(email) },
+        onResetStatus = { component.resetError() },
     )
 }
 

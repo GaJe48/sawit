@@ -14,16 +14,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import org.koin.android.ext.android.inject
+import org.koin.android.ext.android.get
 
 class LmsSyncService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1
     }
 
-    private val courseRepository: CourseRepository by inject()
-    private val assignmentDao: AssignmentDao by inject()
-    private val notificationHelper: NotificationHelper by inject()
+    private val courseRepository: CourseRepository = get()
+    private val assignmentDao: AssignmentDao = get()
+    private val notificationHelper: NotificationHelper = get()
 
     private val serviceScope = CoroutineScope(Dispatchers.IO)
 
