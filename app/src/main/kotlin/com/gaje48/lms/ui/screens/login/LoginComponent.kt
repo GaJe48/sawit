@@ -1,16 +1,18 @@
 package com.gaje48.lms.ui.screens.login
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.decompose.value.MutableValue
+import com.arkivanov.decompose.value.Value
+import com.arkivanov.decompose.value.update
+import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
 import com.gaje48.lms.data.AuthRepository
 import com.gaje48.lms.data.CourseRepository
 import com.gaje48.lms.model.AuthStatus
 import com.github.michaelbull.result.onErr
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import uniffi.lms_rust.LmsException
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -19,25 +21,37 @@ data class LoginUiState(
     val errorMessage: String? = null,
 )
 
-class LoginViewModel(
-    private val authRepository: AuthRepository,
-    private val courseRepository: CourseRepository,
-) : ViewModel() {
-    private val _uiState = MutableStateFlow(LoginUiState())
-    val uiState = _uiState.asStateFlow()
+interface LoginComponent {
+    val uiState: Value<LoginUiState>
+
+    fun resetError()
+    fun manualLogin(nim: String, pwd: String)
+    fun requestResetPassword(email: String)
+}
+
+class DefaultLoginComponent(
+    componentContext: ComponentContext,
+) : LoginComponent, ComponentContext by componentContext, KoinComponent {
+    private val authRepository: AuthRepository by inject()
+    private val courseRepository: CourseRepository by inject()
+
+    private val scope = coroutineScope()
+
+    private val _uiState = MutableValue(LoginUiState())
+    override val uiState: Value<LoginUiState> = _uiState
 
     private fun setError(message: String) {
         _uiState.update { it.copy(errorMessage = message, status = AuthStatus.IDLE) }
     }
 
-    fun resetError() {
+    override fun resetError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
 
-    fun manualLogin(nim: String, pwd: String) {
+    override fun manualLogin(nim: String, pwd: String) {
         _uiState.update { it.copy(status = AuthStatus.LOADING, errorMessage = null) }
 
-        viewModelScope.launch {
+        scope.launch {
             authRepository.login(nim, pwd).onErr { throwable ->
                 val friendlyMessage =
                     when (throwable) {
@@ -61,10 +75,10 @@ class LoginViewModel(
         }
     }
 
-    fun requestResetPassword(email: String) {
+    override fun requestResetPassword(email: String) {
         _uiState.update { it.copy(status = AuthStatus.LOADING, errorMessage = null) }
 
-        viewModelScope.launch {
+        scope.launch {
             authRepository.requestResetPassword(email).onErr { throwable ->
                 val friendlyMessage =
                     when (throwable) {

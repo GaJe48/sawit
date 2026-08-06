@@ -578,11 +578,7 @@ impl InternetDataSource {
 
         let file_name = format!("{}.{}", base_name, ext);
 
-        let total_size = response
-            .headers()
-            .get("content-length")
-            .and_then(|v| v.to_str().ok()?.parse::<u32>().ok())
-            .unwrap_or(0);
+        let total_size = response.content_length().unwrap_or(0);
 
         let file = file_from_raw_fd(file_descriptor);
         let mut tokio_file = tokio::fs::File::from_std(file);
@@ -638,6 +634,75 @@ impl InternetDataSource {
             })?;
 
         Ok(file_name)
+    }
+
+    async fn fetch_text(&self, url: String) -> Result<String, LmsError> {
+        let res = self.web.get(&url).send().await?;
+        if !res.status().is_success() {
+            return Err(LmsError::NetworkStatusError {
+                status_code: res.status().as_u16(),
+                msg: format!("Failed to fetch URL: {}", url),
+            });
+        }
+        Ok(res.text().await?)
+    }
+
+    async fn download_file_to_path(
+        &self,
+        target_path: String,
+        url: String,
+        callback: Arc<dyn NotifCallback>,
+    ) -> Result<(), LmsError> {
+        let mut response = self.web.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(LmsError::NetworkStatusError {
+                status_code: response.status().as_u16(),
+                msg: format!("File is not available at {}", url),
+            });
+        }
+
+        let total_size = response.content_length().unwrap_or(0);
+
+        let mut tokio_file = tokio::fs::File::create(&target_path)
+            .await
+            .map_err(|e| LmsError::StorageError {
+                msg: format!("Failed to create file at {}: {}", target_path, e),
+            })?;
+
+        let mut downloaded = 0;
+        let mut last_progress = -1;
+
+        while let Some(chunk) = response.chunk().await? {
+            tokio_file
+                .write_all(&chunk)
+                .await
+                .map_err(|e| LmsError::StorageError {
+                    msg: format!("Failed to write chunk to disk: {}", e),
+                })?;
+
+            downloaded += chunk.len();
+
+            let progress = if total_size > 0 {
+                (downloaded as f32 / total_size as f32 * 100.0) as i32
+            } else {
+                -1
+            };
+
+            if progress > last_progress {
+                callback.on_progress(target_path.clone(), progress);
+                last_progress = progress;
+            }
+        }
+
+        tokio_file
+            .sync_all()
+            .await
+            .map_err(|e| LmsError::StorageError {
+                msg: format!("Failed to sync downloaded file to storage: {}", e),
+            })?;
+
+        Ok(())
     }
 
     async fn upload_submission(

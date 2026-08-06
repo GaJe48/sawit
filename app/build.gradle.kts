@@ -18,7 +18,7 @@ android {
         minSdk = 29
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -64,9 +64,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.androidx.navigation3.runtime)
-    implementation(libs.androidx.navigation3.ui)
-    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(libs.decompose)
+    implementation(libs.decompose.compose)
+    implementation(libs.essenty.lifecycle.coroutines)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.material3)
     implementation(libs.haze)
@@ -76,6 +76,7 @@ dependencies {
     implementation(libs.koin.compose.viewmodel)
     implementation(libs.kotlin.result)
     implementation(libs.kotlin.result.coroutines)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

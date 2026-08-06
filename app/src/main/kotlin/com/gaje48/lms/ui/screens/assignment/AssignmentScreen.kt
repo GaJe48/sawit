@@ -60,7 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.gaje48.lms.R
 import com.gaje48.lms.model.AssignmentScreenData
 import com.gaje48.lms.ui.components.EmptyGif
@@ -95,19 +95,16 @@ private val mimeTypes =
     ExperimentalMaterial3ExpressiveApi::class,
 )
 @Composable
-fun AssignmentScreen(
-    viewModel: AssignmentViewModel,
-    onBackClick: () -> Unit,
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+fun AssignmentScreen(component: AssignmentComponent) {
+    val uiState by component.uiState.subscribeAsState()
     val courseName = uiState.courseName ?: return
 
     AssignmentScreenStateless(
         courseName = courseName,
         assignmentScreenDatas = uiState.assignmentScreenDatas,
-        onDownloadQuestion = { url, meetingNumber -> viewModel.downloadQuestion(url, courseName, meetingNumber) },
-        onUploadSubmission = { uri, assignmentUrl -> viewModel.uploadSubmission(uri, assignmentUrl) },
-        onBackClick = onBackClick,
+        onDownloadQuestion = { url, meetingNumber -> component.downloadQuestion(url, courseName, meetingNumber) },
+        onUploadSubmission = { uri, assignmentUrl -> component.uploadSubmission(uri, assignmentUrl) },
+        onBackClick = { component.onBackClick() },
     )
 }
 

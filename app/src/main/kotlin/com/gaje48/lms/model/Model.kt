@@ -1,8 +1,5 @@
 package com.gaje48.lms.model
 
-import androidx.navigation3.runtime.NavKey
-import kotlinx.serialization.Serializable
-
 enum class AuthStatus {
     IDLE,
     LOADING,
@@ -85,18 +82,3 @@ data class CourseAssignmentCount(
     val courseCode: String,
     val count: Int,
 )
-
-@Serializable
-object LoginNavKey : NavKey
-
-@Serializable
-object DashboardNavKey : NavKey
-
-@Serializable
-data class MeetingNavKey(val courseCode: String) : NavKey
-
-@Serializable
-data class AssignmentNavKey(val courseCode: String) : NavKey
-
-@Serializable
-data class AttendanceNavKey(val courseCode: String) : NavKey
