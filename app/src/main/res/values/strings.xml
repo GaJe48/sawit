@@ -24,7 +24,7 @@
     <string name="login_username_validation_error">NIM harus minimal 12 digit</string>
     <string name="login_password_label">Password Portal</string>
     <string name="login_password_toggle_desc">Tahan untuk melihat password</string>
-    <string name="login_button_processing">Memproses Keamanan...</string>
+    <string name="login_button_processing">Memproses Keamanan…</string>
     <string name="login_button_success">Berhasil Masuk!</string>
     <string name="login_button_idle">Masuk Portal</string>
     <string name="login_forgot_password_link">Lupa Kata Sandi?</string>
@@ -33,7 +33,7 @@
     <string name="login_email_label">Email</string>
     <string name="login_email_validation_error">Format email tidak valid</string>
     <string name="login_reset_success_banner">Tautan/proses pemulihan kata sandi telah dikirim. Silakan cek email Gmail Anda.</string>
-    <string name="login_reset_button_processing">Mengirim Permintaan...</string>
+    <string name="login_reset_button_processing">Mengirim Permintaan…</string>
     <string name="login_reset_button_success">Tautan Dikirim!</string>
     <string name="login_reset_button_idle">Kirim Link Reset</string>
     <string name="login_back_to_login">Kembali ke Halaman Login</string>
@@ -43,6 +43,7 @@
     <string name="dashboard_logout_desc">Apakah kamu yakin ingin logout dari sistem? Kamu perlu masuk kembali menggunakan NIM dan password.</string>
     <string name="dashboard_logout_confirm">Logout</string>
     <string name="dashboard_logout_dismiss">Batal</string>
+    <string name="dashboard_check_update">Cek Pembaruan</string>
     <string name="dashboard_hello">Halo, %1$s</string>
     <string name="dashboard_not_synced_yet">Belum pernah sinkron</string>
     <string name="dashboard_profile_picture_content_desc">Foto Profil</string>
@@ -86,7 +87,7 @@
     <string name="assignment_button_submit">Kirim Jawaban Sekarang</string>
 
     <!-- Attendance Screen -->
-    <string name="attendance_processing_dialog">Sedang memproses presensi Anda...</string>
+    <string name="attendance_processing_dialog">Sedang memproses presensi Anda…</string>
     <string name="attendance_recap_title">Rekap Presensi</string>
     <string name="attendance_no_attendances">Belum ada data absen</string>
     <string name="attendance_rate_title">Tingkat Kehadiran</string>

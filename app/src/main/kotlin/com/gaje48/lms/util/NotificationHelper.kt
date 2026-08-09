@@ -11,7 +11,7 @@ import com.gaje48.lms.MainActivity
 import com.gaje48.lms.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
@@ -43,54 +43,59 @@ class NotificationHelper(private val context: Context) {
                 ),
             )
         }
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val pendingNotifyMap = LinkedHashMap<Int, Notification>()
-    private var isLoopRunning = false
 
+    private val lock = Any()
+
+    private val scope = CoroutineScope(Dispatchers.Default)
+    private val pendingNotifyMap = LinkedHashMap<Int, Notification>()
     private var lastNotifyTime = 0L
 
-    private fun notifySafe(notifId: Int, notification: Notification) {
-        synchronized(this) {
-            pendingNotifyMap[notifId] = notification
-            if (!isLoopRunning) {
-                isLoopRunning = true
-                scope.launch { processNotificationQueue() }
+    private val triggerChannel = Channel<Unit>(Channel.CONFLATED)
+
+    init {
+        scope.launch {
+            for (trigger in triggerChannel) {
+                processNotificationQueue()
             }
         }
     }
 
+    fun notifySafe(notifId: Int, notification: Notification) {
+        synchronized(lock) {
+            pendingNotifyMap[notifId] = notification
+        }
+
+        triggerChannel.trySend(Unit)
+    }
+
     private suspend fun processNotificationQueue() {
         while (true) {
-            val entry = synchronized(this) {
-                if (pendingNotifyMap.isEmpty()) {
-                    isLoopRunning = false
-                    return
-                }
-                val firstKey = pendingNotifyMap.keys.first()
-                val notif = pendingNotifyMap.remove(firstKey)!!
-                firstKey to notif
+            val notifId = synchronized(lock) {
+                pendingNotifyMap.keys.firstOrNull() ?: break
             }
 
-            val notifId = entry.first
-            val notification = entry.second
-
             val now = SystemClock.elapsedRealtime()
-
             val timeSinceLast = (now - lastNotifyTime).milliseconds
-
             if (timeSinceLast < MIN_DELAY) {
                 delay(MIN_DELAY - timeSinceLast)
             }
 
-            val isOverwritten =
-                synchronized(this) {
-                    pendingNotifyMap.containsKey(notifId)
-                }
+            val notification = synchronized(lock) {
+                pendingNotifyMap.remove(notifId)
+            }
 
-            if (!isOverwritten) {
+            notification?.let {
                 notificationManager.notify(notifId, notification)
                 lastNotifyTime = SystemClock.elapsedRealtime()
             }
+        }
+    }
+
+    fun notifBuilder() = Notification.Builder(context, CHANNEL_ID_LOW)
+
+    fun cancelSafe(notifId: Int) {
+        synchronized(lock) {
+            pendingNotifyMap.remove(notifId)
         }
     }
 

@@ -664,22 +664,34 @@ impl InternetDataSource {
 
         let total_size = response.content_length().unwrap_or(0);
 
-        let mut tokio_file = tokio::fs::File::create(&target_path)
-            .await
-            .map_err(|e| LmsError::StorageError {
-                msg: format!("Failed to create file at {}: {}", target_path, e),
-            })?;
+        let mut tokio_file =
+            tokio::fs::File::create(&target_path)
+                .await
+                .map_err(|e| LmsError::StorageError {
+                    msg: format!("Failed to create file at {}: {}", target_path, e),
+                })?;
 
         let mut downloaded = 0;
         let mut last_progress = -1;
 
-        while let Some(chunk) = response.chunk().await? {
-            tokio_file
-                .write_all(&chunk)
-                .await
-                .map_err(|e| LmsError::StorageError {
+        loop {
+            let chunk = match response.chunk().await {
+                Ok(Some(c)) => c,
+                Ok(None) => break,
+                Err(e) => {
+                    let _ = tokio::fs::remove_file(&target_path).await;
+                    return Err(LmsError::NetworkError {
+                        msg: format!("Failed to download chunk: {}", e),
+                    });
+                }
+            };
+
+            if let Err(e) = tokio_file.write_all(&chunk).await {
+                let _ = tokio::fs::remove_file(&target_path).await;
+                return Err(LmsError::StorageError {
                     msg: format!("Failed to write chunk to disk: {}", e),
-                })?;
+                });
+            }
 
             downloaded += chunk.len();
 
@@ -695,12 +707,12 @@ impl InternetDataSource {
             }
         }
 
-        tokio_file
-            .sync_all()
-            .await
-            .map_err(|e| LmsError::StorageError {
+        if let Err(e) = tokio_file.sync_all().await {
+            let _ = tokio::fs::remove_file(&target_path).await;
+            return Err(LmsError::StorageError {
                 msg: format!("Failed to sync downloaded file to storage: {}", e),
-            })?;
+            });
+        }
 
         Ok(())
     }

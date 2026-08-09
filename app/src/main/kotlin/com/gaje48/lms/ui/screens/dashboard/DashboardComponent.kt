@@ -3,14 +3,19 @@ package com.gaje48.lms.ui.screens.dashboard
 import com.arkivanov.decompose.ComponentContext
 import com.arkivanov.decompose.value.MutableValue
 import com.arkivanov.decompose.value.Value
+import com.arkivanov.decompose.value.update
 import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
 import com.gaje48.lms.data.AssignmentRepository
 import com.gaje48.lms.data.AttendanceRepository
 import com.gaje48.lms.data.AuthRepository
 import com.gaje48.lms.data.CourseRepository
+import com.gaje48.lms.data.UpdateRepository
 import com.gaje48.lms.model.AttendancesByCourse
 import com.gaje48.lms.model.Course
 import com.gaje48.lms.model.Student
+import com.gaje48.lms.navigation.AppUpdateState
+import com.github.michaelbull.result.onErr
+import com.github.michaelbull.result.onOk
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -29,6 +34,7 @@ data class DashboardUiState(
     val allPresences: List<AttendancesByCourse> = emptyList(),
     val unsubmittedCounts: Map<String, Int> = emptyMap(),
     val lastSyncText: String = "Belum pernah sinkron",
+    val updateState: AppUpdateState = AppUpdateState(),
 )
 
 interface DashboardComponent {
@@ -36,6 +42,12 @@ interface DashboardComponent {
     val snackbarEvent: Flow<String>
 
     fun logout()
+
+    fun checkForUpdate()
+
+    fun startUpdate(apkUrl: String)
+
+    fun dismissUpdate()
 
     fun onCourseClick(courseCode: String)
 
@@ -54,6 +66,7 @@ class DefaultDashboardComponent(
     private val courseRepository: CourseRepository = get()
     private val attendanceRepository: AttendanceRepository = get()
     private val assignmentRepository: AssignmentRepository = get()
+    private val updateRepository: UpdateRepository = get()
 
     private val scope = coroutineScope()
 
@@ -65,6 +78,14 @@ class DefaultDashboardComponent(
 
     init {
         scope.launch {
+            updateRepository.downloadProgress.collect { progress ->
+                _uiState.update { current ->
+                    current.copy(updateState = current.updateState.copy(downloadProgress = progress))
+                }
+            }
+        }
+
+        scope.launch {
             combine(
                 courseRepository.student,
                 courseRepository.courses,
@@ -72,7 +93,7 @@ class DefaultDashboardComponent(
                 assignmentRepository.unsubmittedAssignmentCounts,
                 courseRepository.lastSyncTime,
             ) { student, courses, attendances, unsubmittedCounts, lastSyncTime ->
-                DashboardUiState(
+                _uiState.value.copy(
                     student = student,
                     courses = courses,
                     allPresences = attendances,
@@ -83,10 +104,68 @@ class DefaultDashboardComponent(
                 _uiState.value = state
             }
         }
+
+        checkForUpdateOnLaunch()
+    }
+
+    private fun checkForUpdateOnLaunch() {
+        scope.launch {
+            updateRepository.checkForUpdate().onOk { info ->
+                if (info != null) {
+                    _uiState.update { current ->
+                        current.copy(updateState = current.updateState.copy(updateInfo = info))
+                    }
+                }
+            }
+        }
     }
 
     override fun logout() {
         scope.launch { authRepository.logout() }
+    }
+
+    override fun checkForUpdate() {
+        scope.launch {
+            updateRepository
+                .checkForUpdate()
+                .onOk { info ->
+                    if (info == null) {
+                        _snackbarEvent.send("Aplikasi sudah dalam versi terbaru")
+                    } else {
+                        _uiState.update { current ->
+                            current.copy(updateState = current.updateState.copy(updateInfo = info))
+                        }
+                    }
+                }.onErr { throwable ->
+                    _snackbarEvent.send(throwable.message ?: "Gagal mengecek pembaruan")
+                }
+        }
+    }
+
+    override fun startUpdate(apkUrl: String) {
+        _uiState.update { current ->
+            current.copy(updateState = current.updateState.copy(isDownloading = true))
+        }
+
+        scope.launch {
+            updateRepository
+                .getLatestApk(apkUrl)
+                .onOk { apkFile ->
+                    updateRepository.installApk(apkFile)
+                }.onErr { throwable ->
+                    _snackbarEvent.send(throwable.message ?: "Gagal mengunduh pembaruan")
+                }
+
+            _uiState.update { current ->
+                current.copy(updateState = current.updateState.copy(isDownloading = false))
+            }
+        }
+    }
+
+    override fun dismissUpdate() {
+        _uiState.update { current ->
+            current.copy(updateState = current.updateState.copy(updateInfo = null))
+        }
     }
 
     override fun onCourseClick(courseCode: String) {

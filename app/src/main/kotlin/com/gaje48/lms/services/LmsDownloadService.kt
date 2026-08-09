@@ -36,9 +36,11 @@ class LmsDownloadService : Service() {
     private val activeDownloadsCount = AtomicInteger(0)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val request = intent?.let {
-            IntentCompat.getParcelableExtra(it, EXTRA_DOWNLOAD_REQUEST, DownloadRequest::class.java)
-        } ?: return START_NOT_STICKY
+        val request = IntentCompat.getParcelableExtra(
+            intent!!,
+            EXTRA_DOWNLOAD_REQUEST,
+            DownloadRequest::class.java,
+        )!!
 
         val notifId = request.notifId
         val courseCode = request.courseCode
