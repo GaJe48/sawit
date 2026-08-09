@@ -9,12 +9,10 @@ import com.arkivanov.decompose.router.stack.pushToFront
 import com.arkivanov.decompose.router.stack.replaceAll
 import com.arkivanov.decompose.value.MutableValue
 import com.arkivanov.decompose.value.Value
-import com.arkivanov.decompose.value.update
 import com.arkivanov.essenty.backhandler.BackHandlerOwner
 import com.arkivanov.essenty.lifecycle.coroutines.coroutineScope
 import com.gaje48.lms.data.AuthRepository
 import com.gaje48.lms.data.CourseRepository
-import com.gaje48.lms.data.UpdateRepository
 import com.gaje48.lms.model.UpdateInfo
 import com.gaje48.lms.ui.screens.assignment.AssignmentComponent
 import com.gaje48.lms.ui.screens.assignment.DefaultAssignmentComponent
@@ -27,7 +25,6 @@ import com.gaje48.lms.ui.screens.login.LoginComponent
 import com.gaje48.lms.ui.screens.meeting.DefaultMeetingComponent
 import com.gaje48.lms.ui.screens.meeting.MeetingComponent
 import com.github.michaelbull.result.onErr
-import com.github.michaelbull.result.onOk
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -53,12 +50,6 @@ interface RootComponent : BackHandlerOwner {
 
     fun checkLoginStatus()
 
-    fun checkForUpdate()
-
-    fun startUpdate(apkUrl: String)
-
-    fun dismissUpdate()
-
     fun refresh()
 
     fun onNavigateToMeeting(courseCode: String)
@@ -75,7 +66,6 @@ class DefaultRootComponent(
 ) : RootComponent, ComponentContext by componentContext, KoinComponent {
     private val authRepository: AuthRepository = get()
     private val courseRepository: CourseRepository = get()
-    private val updateRepository: UpdateRepository = get()
 
     private val navigation = StackNavigation<Config>()
     private val scope = coroutineScope()
@@ -147,6 +137,7 @@ class DefaultRootComponent(
                 _authState.value = isLoggedIn
                 val targetConfig = if (isLoggedIn) Config.Dashboard else Config.Login
                 val currentConfig = childStack.value.active.configuration
+
                 if (isLoggedIn && currentConfig is Config.Login) {
                     navigation.replaceAll(targetConfig)
                 } else if (!isLoggedIn && currentConfig !is Config.Login) {
@@ -165,35 +156,6 @@ class DefaultRootComponent(
                 authRepository.checkLoginStatus(it.first, it.second)
             }
         }
-        checkForUpdate()
-    }
-
-    override fun checkForUpdate() {
-        scope.launch {
-            updateRepository.checkForUpdate().onOk { info ->
-                _updateState.update { it.copy(updateInfo = info) }
-            }
-        }
-    }
-
-    override fun startUpdate(apkUrl: String) {
-        if (_updateState.value.isDownloading) return
-        _updateState.update { it.copy(isDownloading = true) }
-
-        scope.launch {
-            updateRepository
-                .downloadAndInstallApk(apkUrl) { progress ->
-                    _updateState.update { it.copy(downloadProgress = progress) }
-                }.onErr { throwable ->
-                    _snackbarEvent.send(throwable.message ?: "Gagal mengunduh pembaruan")
-                }
-
-            _updateState.update { it.copy(isDownloading = false) }
-        }
-    }
-
-    override fun dismissUpdate() {
-        _updateState.update { it.copy(updateInfo = null) }
     }
 
     override fun refresh() {

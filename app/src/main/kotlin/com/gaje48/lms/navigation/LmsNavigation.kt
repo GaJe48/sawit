@@ -68,7 +68,6 @@ import com.arkivanov.decompose.extensions.compose.stack.animation.stackAnimator
 import com.arkivanov.decompose.extensions.compose.subscribeAsState
 import com.gaje48.lms.R
 import com.gaje48.lms.ui.components.SyncIndicator
-import com.gaje48.lms.ui.components.UpdateDialog
 import com.gaje48.lms.ui.screens.assignment.AssignmentScreen
 import com.gaje48.lms.ui.screens.attendance.AttendanceScreen
 import com.gaje48.lms.ui.screens.dashboard.DashboardScreen
@@ -127,7 +126,6 @@ fun LmsApp(rootComponent: RootComponent) {
 fun LmsAppContent(rootComponent: RootComponent) {
     val authState by rootComponent.authState.subscribeAsState()
     val isRefreshing by rootComponent.isRefreshing.subscribeAsState()
-    val updateState by rootComponent.updateState.subscribeAsState()
 
     val scope = rememberCoroutineScope()
     val pullToRefreshState = rememberPullToRefreshState()
@@ -138,16 +136,6 @@ fun LmsAppContent(rootComponent: RootComponent) {
     }
 
     ObserveSnackbarEvents(rootComponent.snackbarEvent, showSnackbar)
-
-    updateState.updateInfo?.let { info ->
-        UpdateDialog(
-            updateInfo = info,
-            downloadProgress = updateState.downloadProgress,
-            isDownloading = updateState.isDownloading,
-            onUpdateClick = { rootComponent.startUpdate(info.apkUrl) },
-            onDismissClick = { rootComponent.dismissUpdate() },
-        )
-    }
 
     val content = @Composable {
         Children(

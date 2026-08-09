@@ -24,8 +24,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -34,6 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -71,6 +75,7 @@ import com.gaje48.lms.model.Student
 import com.gaje48.lms.ui.components.EmptyGif
 import com.gaje48.lms.ui.components.FloatingBlobsBackground
 import com.gaje48.lms.ui.components.InfoBadge
+import com.gaje48.lms.ui.components.UpdateDialog
 import com.gaje48.lms.ui.components.rememberPressedState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -125,6 +130,7 @@ fun PreviewDashboardScreen() {
         onCourseClick = { },
         onAttendanceClick = { },
         onAssignmentClick = { },
+        onCheckForUpdate = { },
         onLogout = { },
     )
 }
@@ -132,6 +138,16 @@ fun PreviewDashboardScreen() {
 @Composable
 fun DashboardScreen(component: DashboardComponent) {
     val uiState by component.uiState.subscribeAsState()
+
+    uiState.updateState.updateInfo?.let { updateInfo ->
+        UpdateDialog(
+            updateInfo = updateInfo,
+            downloadProgress = uiState.updateState.downloadProgress,
+            isDownloading = uiState.updateState.isDownloading,
+            onUpdateClick = { component.startUpdate(updateInfo.apkUrl) },
+            onDismissClick = { component.dismissUpdate() },
+        )
+    }
 
     DashboardScreenStateless(
         student = uiState.student ?: return,
@@ -142,6 +158,7 @@ fun DashboardScreen(component: DashboardComponent) {
         onCourseClick = { component.onCourseClick(it) },
         onAttendanceClick = { component.onAttendanceClick(it) },
         onAssignmentClick = { component.onAssignmentClick(it) },
+        onCheckForUpdate = { component.checkForUpdate() },
         onLogout = { component.logout() },
     )
 }
@@ -161,6 +178,7 @@ fun DashboardScreenStateless(
     onCourseClick: (String) -> Unit,
     onAttendanceClick: (String) -> Unit,
     onAssignmentClick: (String) -> Unit,
+    onCheckForUpdate: () -> Unit,
     onLogout: () -> Unit,
 ) {
     FloatingBlobsBackground {
@@ -169,6 +187,7 @@ fun DashboardScreenStateless(
         val hazeState = rememberHazeState()
 
         var showLogoutDialog by remember { mutableStateOf(false) }
+        var showMenu by remember { mutableStateOf(false) }
 
         if (showLogoutDialog) {
             AlertDialog(
@@ -313,40 +332,95 @@ fun DashboardScreenStateless(
                         }
                     },
                     actions = {
-                        val logoutBtnInteraction = remember { MutableInteractionSource() }
-                        val isLogoutBtnPressed by rememberPressedState(logoutBtnInteraction)
-                        val logoutBtnScale by animateFloatAsState(
-                            targetValue = if (isLogoutBtnPressed) 0.95f else 1f,
-                            label = "logout_btn_scale",
+                        val menuBtnInteraction = remember { MutableInteractionSource() }
+                        val isMenuBtnPressed by rememberPressedState(menuBtnInteraction)
+                        val menuBtnScale by animateFloatAsState(
+                            targetValue = if (isMenuBtnPressed) 0.95f else 1f,
+                            label = "menu_btn_scale",
                         )
 
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    delay(150.milliseconds)
-                                    showLogoutDialog = true
-                                }
-                            },
-                            modifier =
-                                Modifier.padding(end = 12.dp).size(50.dp).graphicsLayer {
-                                    scaleX = logoutBtnScale
-                                    scaleY = logoutBtnScale
+                        Box(modifier = Modifier.padding(end = 12.dp)) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        delay(150.milliseconds)
+                                        showMenu = true
+                                    }
                                 },
-                            shape = CircleShape,
-                            colors =
-                                ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f),
-                                    contentColor = MaterialTheme.colorScheme.onSurface,
-                                ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
-                            contentPadding = PaddingValues(),
-                            interactionSource = logoutBtnInteraction,
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = stringResource(R.string.dashboard_logout_confirm),
-                                tint = MaterialTheme.colorScheme.error,
-                            )
+                                modifier =
+                                    Modifier.padding(end = 12.dp).size(50.dp).graphicsLayer {
+                                        scaleX = menuBtnScale
+                                        scaleY = menuBtnScale
+                                    },
+                                shape = CircleShape,
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f),
+                                        contentColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.2f)),
+                                contentPadding = PaddingValues(),
+                                interactionSource = menuBtnInteraction,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Menu Options",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(0.12f), RoundedCornerShape(16.dp)),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = stringResource(R.string.dashboard_check_update),
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.SystemUpdate,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onCheckForUpdate()
+                                    },
+                                )
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(0.1f),
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = stringResource(R.string.dashboard_logout_confirm),
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        showLogoutDialog = true
+                                    },
+                                )
+                            }
                         }
                     },
                 )
